@@ -1,6 +1,7 @@
 /* Harta Auto București–Ilfov
    Harta: plăci OpenStreetMap desenate pe canvas (fără bibliotecă externă).
-   Locurile: Overpass (OpenStreetMap), păstrate în telefon ca să meargă și fără net.
+   Locurile: din OpenStreetMap, luate dintr-un fișier de pe site (data/places.json, refăcut zilnic) sau, dacă lipsește, de la Overpass;
+   păstrate în telefon ca să meargă și fără net.
    Evaluările și serviciile completate de tine rămân deocamdată doar în telefon. */
 (function () {
 'use strict';
@@ -73,6 +74,9 @@ const MIN_Z = 9, MAX_Z = 19;
 const BOUNDS = { lat0: 44.12, lat1: 44.82, lon0: 25.62, lon1: 26.58 };
 const HOME = { lat0: 44.325, lat1: 44.565, lon0: 25.945, lon1: 26.265 };
 const DATA_V = 1, MAX_AGE = 7 * 864e5;
+/* Fișierul cu locurile (se reface zilnic din OpenStreetMap) e luat de pe același site: rapid și fără serverele Overpass.
+   Overpass rămâne pentru când fișierul lipsește sau e mai vechi de MAX_AGE. */
+const SNAP_URL = 'data/places.json', SNAP_AGE = 864e5, RETRY_GAP = 6 * 36e5;
 
 const TYPES = {
   service: { label: 'Service', cv: '--c-service', words: 'service auto atelier mecanic reparatii' },
@@ -113,7 +117,7 @@ let zChangedAt = 0, settleTimer = 0;
 const view = { cx: .5, cy: .5, z: 10 };
 const state = { types: new Set(), open: false, q: '', sel: null, view: 'map' };
 let PLACES = [], byId = {}, me = null;
-let loadState = 'loading', loadError = '';
+let loadState = 'loading', loadError = '', slowT = 0;
 const zoneData = { b: null, i: null }, zoneTs = { b: 0, i: 0 };
 
 /* ---------- ora în România ---------- */
@@ -151,6 +155,13 @@ function passes(p, skipType) {
   return true;
 }
 const serializable = p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b });
+/* un loc din fișierul de pe site: ce nu arată bine se ignoră */
+function cleanPlace(p) {
+  if (!p || typeof p.id !== 'string' || !Object.prototype.hasOwnProperty.call(TYPES, p.t)) return null;
+  if (typeof p.lat !== 'number' || typeof p.lon !== 'number' || !(Math.abs(p.lat) <= 90) || !(Math.abs(p.lon) <= 180)) return null;
+  const s = v => typeof v === 'string' ? v : '';
+  return { id: p.id, t: p.t, n: s(p.n), z: s(p.z), a: s(p.a), lat: p.lat, lon: p.lon, h: s(p.h), tel: Array.isArray(p.tel) ? p.tel : [], w: s(p.w), sv: Array.isArray(p.sv) ? p.sv : [], b: s(p.b) };
+}
 
 /* distanța în metri (suficient de exactă pe distanțe mici) */
 function distM(a, b) {
@@ -901,9 +912,38 @@ function loadData(force) {
   loadJob = doLoad(force).then(r => { done(); return r; }, err => { done(); throw err; });
   return loadJob;
 }
+/* fișierul cu locurile de pe site; null dacă nu e, nu merge sau nu arată cum trebuie */
+async function fetchSnapshot() {
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : 0;
+  try {
+    const r = await fetch(SNAP_URL, { cache: 'no-cache', signal: ctrl ? ctrl.signal : undefined });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || j.v !== 1 || typeof j.ts !== 'number' || !j.zones) return null;
+    const zones = {};
+    ['b', 'i'].forEach(z => {
+      if (!Array.isArray(j.zones[z])) return;
+      const list = j.zones[z].map(cleanPlace).filter(Boolean);
+      if (list.length) zones[z] = list;
+    });
+    return (zones.b || zones.i) ? { ts: j.ts, zones } : null;
+  } catch (e) { return null; }
+  finally { if (timer) clearTimeout(timer); }
+}
 async function doLoad(force) {
   loadState = 'loading'; loadError = '';
   if (!PLACES.length) updateMsg();
+  /* dacă ține mai mult decât de obicei, spune de ce */
+  clearTimeout(slowT);
+  slowT = setTimeout(() => {
+    const s = !PLACES.length && loadState === 'loading' && msgEl.getAttribute('data-kind') === 'loading' && msgEl.querySelector('span');
+    if (s) s.textContent = 'Durează mai mult decât de obicei: serverele OpenStreetMap sunt aglomerate acum. Mai aștept…';
+  }, 9000);
+  try { return await runLoad(force); }
+  finally { clearTimeout(slowT); }
+}
+async function runLoad(force) {
   if (!force) {
     for (const z of ['b', 'i']) {
       const rec = await idb.get('zone-' + z);
@@ -911,10 +951,34 @@ async function doLoad(force) {
     }
     if (zoneData.b || zoneData.i) { loadState = 'ready'; ingest(); }
   }
-  const now = Date.now();
-  const jobs = ['b', 'i'].filter(z => force || !zoneData[z] || now - zoneTs[z] > MAX_AGE);
-  if (!jobs.length) { loadState = 'ready'; updateMsg(); return 0; }
   if (navigator.onLine === false && PLACES.length) { if (force) toast('Nu ai internet. Folosesc locurile salvate.'); return 0; }
+
+  /* 1) fișierul cu locurile, de pe site: se ia când ce avem lipsește sau are peste o zi */
+  const stale = z => !zoneData[z] || Date.now() - zoneTs[z] > SNAP_AGE;
+  let snap = null, fresh = 0;
+  if (force || stale('b') || stale('i')) {
+    snap = await fetchSnapshot();
+    if (snap) {
+      ['b', 'i'].forEach(z => {
+        if (!snap.zones[z] || (zoneData[z] && snap.ts <= zoneTs[z])) return;
+        zoneData[z] = snap.zones[z]; zoneTs[z] = snap.ts; fresh++;
+        idb.set('zone-' + z, { v: DATA_V, ts: snap.ts, places: snap.zones[z].map(serializable) });
+      });
+      if (fresh) { loadState = 'ready'; ingest(); }
+    }
+  }
+
+  /* 2) Overpass doar pentru ce lipsește sau e foarte vechi (sau dacă ai cerut tu și nu avem fișierul) */
+  const now = Date.now();
+  let jobs = ['b', 'i'].filter(z => !zoneData[z] || now - zoneTs[z] > MAX_AGE);
+  if (force && !snap) jobs = ['b', 'i'];
+  if (jobs.length && !force && PLACES.length && now - store.get('la', 0) < RETRY_GAP) jobs = [];   /* nu bat serverele la fiecare pornire */
+  if (!jobs.length) {
+    loadState = 'ready'; updateMsg();
+    if (force) toast(fresh ? 'Locurile au fost actualizate.' : 'Ai deja cele mai noi locuri.');
+    return 0;
+  }
+  store.set('la', now);
   const fails = [];
   await Promise.all(jobs.map(async z => {
     try {
@@ -957,7 +1021,7 @@ function openAbout() {
     '<section class="sec"><p>Service-uri, benzinării, vulcanizări, spălătorii și magazine de piese din București și Ilfov, cu program, telefon și ce servicii oferă.</p></section>' +
     '<section class="sec"><h3>Date</h3>' +
       '<div class="kv"><span>Locuri</span><b>' + PLACES.length + '</b></div>' +
-      '<div class="kv"><span>Descărcate</span><b>' + esc(when) + '</b></div>' +
+      '<div class="kv"><span>Date din OpenStreetMap de la</span><b>' + esc(when) + '</b></div>' +
       '<div class="row-btns"><button class="btn ghost sm" data-act="refresh-data">' + ic('refresh') + 'Actualizează acum</button></div></section>' +
     '<section class="sec"><h3>Instalează</h3>' + inst + '</section>' +
     '<section class="sec"><h3>Sursa datelor</h3><p>Harta și locurile vin din <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, © contribuitorii OpenStreetMap, sub licența ODbL. Datele sunt făcute de oameni și pot fi incomplete. Dacă lipsește un loc sau un program, îl poți adăuga pe <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">openstreetmap.org</a>, iar aplicația îl ia la următoarea actualizare.</p></section>' +

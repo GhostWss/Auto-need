@@ -80,9 +80,10 @@ function tilePng(z, x, y, style) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function newState(extra) {
   return Object.assign({
-    tileLog: [], overpassLog: [], unexpected: [],
+    tileLog: [], overpassLog: [], snapLog: [], unexpected: [],
     cors: true, tileStyle: 'pretty', tilesFail: false, tileDelay: 0,
     elements: { b: [], i: [] },
+    snapshot: null,           // fișierul data/places.json: obiect sau text; null = un răspuns care nu e un fișier de locuri; 404 = lipsește
     overpass: null            // fn({host, zone, strict, n}) -> {status?, json?, delay?}
   }, extra || {});
 }
@@ -92,6 +93,14 @@ async function installMocks(ctx, S) {
   await ctx.route(url => !/^http:\/\/127\.0\.0\.1[:/]/.test(url.href) && !/^(data|blob|about):/.test(url.href), route => {
     S.unexpected.push(route.request().url());
     route.abort();
+  });
+  /* fișierul cu locurile de pe site: îl hotărăște testul. Implicit nu e un fișier bun, ca să se vadă drumul prin Overpass
+     (fără 404, ca să nu apară în consolă o eroare pe care aplicația n-o are în realitate cât timp fișierul există) */
+  await ctx.route(/^http:\/\/127\.0\.0\.1:\d+\/data\/places\.json/, route => {
+    S.snapLog.push(Date.now());
+    if (S.snapshot === 404) return route.fulfill({ status: 404, body: 'nu există' });
+    if (S.snapshot === null || S.snapshot === undefined) return route.fulfill({ status: 200, headers: { 'content-type': 'application/json' }, body: 'null' });
+    route.fulfill({ status: 200, headers: { 'content-type': 'application/json' }, body: typeof S.snapshot === 'string' ? S.snapshot : JSON.stringify(S.snapshot) });
   });
   await ctx.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, route => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.route(/^https:\/\/tile\.openstreetmap\.org\//, async route => {

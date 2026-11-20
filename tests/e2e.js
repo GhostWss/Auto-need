@@ -7,6 +7,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 const L = require('./lib');
 const F = require('./fixtures');
+const OSM = require('../js/osm.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const SHOTS = process.env.SHOTS || path.join(ROOT, '..', 'shots');
@@ -22,6 +23,7 @@ function ok(c, msg) {
 const eq = (a, b, msg) => { const same = JSON.stringify(a) === JSON.stringify(b); ok(same, msg + (same ? '' : '  → am primit ' + JSON.stringify(a) + ', așteptam ' + JSON.stringify(b))); };
 const near = (a, b, tol, msg) => ok(Math.abs(a - b) <= tol, msg + '  (' + (typeof a === 'number' ? a.toFixed(2) : a) + ' față de ' + (typeof b === 'number' ? b.toFixed(2) : b) + ')');
 async function T(name, fn) {
+  if (process.env.ONLY && !new RegExp(process.env.ONLY, 'i').test(name)) return;   // ONLY="Overpass|fișier" node tests/e2e.js → doar testele cu aceste cuvinte
   console.log('\n● ' + name);
   const t0 = Date.now();
   try { await fn(); } catch (e) { fail++; failed.push(name + ': ' + e.message); console.log('  ✗ EROARE: ' + (e.stack || e.message).split('\n').slice(0, 4).join('\n    ')); }
@@ -33,6 +35,15 @@ const DESKTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, 
 
 let browser, base;
 const state0 = extra => L.newState(Object.assign({ elements: { b: F.knownB(), i: F.knownI() } }, extra));
+/* fișierul data/places.json, făcut din aceleași locuri de probă */
+const strip = p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b });
+const NEW_B = [{ type: 'node', id: 7001, lat: 44.43, lon: 26.12, tags: { amenity: 'fuel', name: 'Benzinărie nouă', opening_hours: '24/7' } }];
+const snapshotOf = (ts, withNew) => ({
+  v: 1, ts, osm: new Date(ts).toISOString(),
+  zones: { b: OSM.normalize(F.knownB().concat(withNew ? NEW_B : []), 'b').map(strip), i: OSM.normalize(F.knownI(), 'i').map(strip) }
+});
+const HOUR = 36e5;
+const SW_VER = /VERSION = '(v\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8'))[1];
 
 async function session(S, o) {
   o = o || {};
@@ -366,9 +377,9 @@ const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
     const a = await session(Sa, { wait: false, allowErrors: /Failed to load resource/ });
     await a.page.waitForSelector('#msg[data-kind="error"]', { timeout: 15000 });
     ok(/Nu pot încărca locurile/.test(await a.page.locator('#msg').innerText()), '(a) fără răspuns de la servere: „Nu pot încărca locurile”');
-    ok(Sa.overpassLog.some(r => !r.strict), '(a) a încercat și interogarea pe dreptunghi');
+    ok(!Sa.overpassLog.some(r => !r.strict), '(a) când serverele nu răspund nu mai cere și dreptunghiul (ar dubla așteptarea)');
     const hosts = new Set(Sa.overpassLog.map(r => r.host));
-    eq(hosts.size, 3, '(a) a încercat toate cele 3 servere');
+    eq(hosts.size, 4, '(a) a încercat toate cele 4 servere');
     down = false;
     await a.page.locator('#msg [data-act="retry"]').click();
     await a.page.waitForFunction(() => HA.places.length > 0, null, { timeout: 15000 });
@@ -380,8 +391,9 @@ const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
     const Sb = state0({ overpass: async ({ host }) => host === 'overpass-api.de' ? { status: 429, json: {} } : null });
     const b = await session(Sb, { allowErrors: /Failed to load resource/ });
     const order = Sb.overpassLog.filter(r => r.zone === 'b' && r.strict).map(r => r.host);
-    eq(order.slice(0, 2), ['overpass-api.de', 'overpass.kumi.systems'], '(b) 429 la primul server → încearcă al doilea');
-    eq(await b.page.evaluate(() => HA.places.length), 24, '(b) și locurile vin');
+    eq(order.slice(0, 2), ['overpass-api.de', 'overpass.openstreetmap.fr'], '(b) 429 la primul server → încearcă imediat al doilea');
+    await b.page.waitForFunction(() => HA.places.length === 24, null, { timeout: 5000 });
+    ok(true, '(b) și locurile vin (24)');
     await b.ctx.close();
 
     /* (c) zona nu se găsește după limite administrative: trece direct la dreptunghi */
@@ -389,7 +401,8 @@ const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
     const c = await session(Sc);
     eq(Sc.overpassLog.filter(r => r.strict).length, 2, '(c) o singură încercare după limite pe zonă (nu 3)');
     eq(Sc.overpassLog.filter(r => !r.strict).length, 2, '(c) apoi interogarea pe dreptunghi, pe fiecare zonă');
-    eq(await c.page.evaluate(() => HA.places.length), 24, '(c) locurile vin');
+    await c.page.waitForFunction(() => HA.places.length === 24, null, { timeout: 5000 });
+    ok(true, '(c) locurile vin (24)');
     await c.ctx.close();
 
     /* (d) doar Ilfov nu merge: București apare și te anunță */
@@ -399,6 +412,104 @@ const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
     ok(/Nu am putut încărca încă Ilfov/.test(await d.page.locator('#toast').innerText()), '(d) doar Ilfov lipsește: „Nu am putut încărca încă Ilfov”');
     eq(await d.page.evaluate(() => HA.places.length), 20, '(d) București apare (20 de locuri)');
     await d.ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Locurile vin dintr-un fișier de pe site, fără să depindă de Overpass', async () => {
+    /* (a) prima pornire: totul vine din fișier, Overpass nici nu e întrebat */
+    const S = state0({ snapshot: snapshotOf(FRI_10.getTime() - 5 * HOUR), overpass: async () => ({ status: 504, json: {} }) });
+    const { ctx, page, errors } = await session(S, { allowErrors: /Failed to load resource/ });
+    eq(await page.evaluate(() => HA.places.length), 24, '(a) cele 24 de locuri apar din fișier');
+    eq(S.overpassLog.length, 0, '(a) nicio cerere către Overpass');
+    eq(S.snapLog.length, 1, '(a) o singură cerere pentru fișier');
+    ok(await page.locator('#msg').isHidden(), '(a) fără mesajul „Se încarcă” rămas pe ecran');
+    /* (b) a doua pornire, în aceeași zi: locurile sunt deja în telefon */
+    await page.waitForTimeout(300);
+    await page.reload();
+    await page.waitForFunction(() => window.HA && window.HA.places.length > 0);
+    await page.waitForTimeout(500);
+    eq(S.snapLog.length, 1, '(b) a doua pornire, în aceeași zi: fișierul nu se mai cere');
+    eq(S.overpassLog.length, 0, '(b) nici Overpass');
+    /* (c) a doua zi fișierul are un loc nou: aplicația îl ia */
+    S.snapshot = snapshotOf(FRI_10.getTime() + 25 * HOUR, true);
+    await page.clock.setFixedTime(new Date(FRI_10.getTime() + 30 * HOUR));
+    await page.reload();
+    await page.waitForFunction(() => HA.places.length === 25, null, { timeout: 8000 });
+    ok(true, '(c) a doua zi, cu fișier nou: apare și locul nou (25)');
+    eq(S.overpassLog.length, 0, '(c) tot fără Overpass');
+    /* (d) peste o zi și jumătate fișierul nu mai e (404): rămân locurile din telefon, fără Overpass (au sub 7 zile) */
+    S.snapshot = 404;
+    await page.clock.setFixedTime(new Date(FRI_10.getTime() + 60 * HOUR));
+    await page.reload();
+    await page.waitForFunction(() => window.HA && window.HA.places.length > 0);
+    await page.waitForTimeout(500);
+    eq(await page.evaluate(() => HA.places.length), 25, '(d) fișierul lipsește, dar locurile salvate rămân');
+    eq(S.overpassLog.length, 0, '(d) și fără Overpass');
+    eq(errors.filter(e => !/Failed to load resource|404/.test(e)), [], 'fără erori de cod');
+    await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Fișier stricat sau vechi: se ia de la OpenStreetMap, fără greșeli', async () => {
+    const good = snapshotOf(FRI_10.getTime() - HOUR);
+    /* (a) altă versiune de fișier */
+    const Sa = state0({ snapshot: Object.assign({}, good, { v: 2 }) });
+    const a = await session(Sa);
+    await a.page.waitForFunction(() => HA.places.length === 24, null, { timeout: 5000 });
+    ok(true, '(a) fișier de altă versiune → ignorat, locurile vin de la Overpass (24)');
+    eq(Sa.overpassLog.filter(r => r.strict).length, 2, '(a) cele două interogări Overpass');
+    await a.ctx.close();
+    /* (b) fișierul nu e JSON (de pildă o pagină de eroare) */
+    const Sb = state0({ snapshot: '<html><body>Server în mentenanță</body></html>' });
+    const b = await session(Sb, { allowErrors: /Failed to load resource/ });
+    await b.page.waitForFunction(() => HA.places.length === 24, null, { timeout: 5000 });
+    ok(true, '(b) fișier care nu e JSON → ignorat, locurile vin de la Overpass (24)');
+    await b.ctx.close();
+    /* (c) locuri stricate printre cele bune: se ignoră doar ele */
+    const bad = JSON.parse(JSON.stringify(good));
+    bad.zones.b.push({ id: 'n1', t: 'constructor', n: 'x', lat: 44.4, lon: 26.1 }, { id: 'n2', t: 'benz', n: 'fără coordonate' },
+      { id: 'n3', t: 'benz', n: 'coordonate text', lat: 'sus', lon: 26 }, { id: 'n4', t: 'benz', n: 'în ocean', lat: 95, lon: 26 }, null, 5);
+    const Sc = state0({ snapshot: bad, overpass: async () => ({ status: 504, json: {} }) });
+    const c = await session(Sc, { allowErrors: /Failed to load resource/ });
+    eq(await c.page.evaluate(() => HA.places.length), 24, '(c) locurile stricate sunt ignorate, cele bune rămân (24)');
+    eq(Sc.overpassLog.length, 0, '(c) fără Overpass');
+    await c.ctx.close();
+    /* (d) fișier vechi de 10 zile și Overpass căzut: locurile din fișier se văd, fără mesaj de eroare */
+    const Sd = state0({ snapshot: snapshotOf(FRI_10.getTime() - 10 * 864e5), overpass: async () => ({ status: 504, json: {} }) });
+    const d = await session(Sd, { allowErrors: /Failed to load resource/ });
+    await d.page.waitForTimeout(1200);
+    eq(await d.page.evaluate(() => HA.places.length), 24, '(d) fișier vechi: locurile din el apar');
+    ok(Sd.overpassLog.length > 0, '(d) iar aplicația încearcă să le reîmprospăteze (' + Sd.overpassLog.length + ' cereri)');
+    eq(await d.page.locator('#msg').isVisible(), false, '(d) fără mesaj de eroare');
+    await d.ctx.close();
+    /* (e) la fel, dar Overpass răspunde: ia datele noi */
+    const Se = state0({ snapshot: snapshotOf(FRI_10.getTime() - 10 * 864e5), elements: { b: F.knownB().concat(NEW_B), i: F.knownI() } });
+    const e = await session(Se);
+    await e.page.waitForFunction(() => HA.places.length === 25, null, { timeout: 8000 });
+    ok(true, '(e) fișier vechi + Overpass care răspunde: locurile se reîmprospătează (25)');
+    await e.ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('„Actualizează acum” ia fișierul de pe site', async () => {
+    const S = state0({ snapshot: snapshotOf(FRI_10.getTime() - HOUR), overpass: async () => ({ status: 504, json: {} }) });
+    const { ctx, page } = await session(S, { allowErrors: /Failed to load resource/ });
+    const refresh = async () => { await page.locator('#aboutBtn').click(); await page.locator('[data-act="refresh-data"]').click(); };
+    await refresh();
+    await page.waitForFunction(() => /Ai deja cele mai noi locuri/.test(document.getElementById('toast').textContent), null, { timeout: 5000 });
+    ok(true, 'același fișier → „Ai deja cele mai noi locuri.”');
+    S.snapshot = snapshotOf(FRI_10.getTime() - 1000, true);
+    await refresh();
+    await page.waitForFunction(() => HA.places.length === 25, null, { timeout: 5000 });
+    await page.waitForFunction(() => /Locurile au fost actualizate/.test(document.getElementById('toast').textContent), null, { timeout: 5000 });
+    ok(true, 'fișier mai nou → „Locurile au fost actualizate.” și apare locul nou');
+    eq(S.overpassLog.length, 0, 'fără Overpass');
+    /* dacă fișierul nu mai e, ce ceri tu se face de la OpenStreetMap */
+    S.snapshot = 404; S.overpass = null; S.elements = { b: F.knownB(), i: F.knownI() };
+    await refresh();
+    await page.waitForFunction(() => HA.places.length === 24, null, { timeout: 8000 });
+    ok(S.overpassLog.length >= 2, 'fără fișier, „Actualizează acum” întreabă Overpass (' + S.overpassLog.length + ' cereri)');
+    await ctx.close();
   });
 
   /* ---------------------------------------------------------------- */
@@ -621,7 +732,7 @@ const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
     await page.evaluate(() => HA.setView({ cx: HA.view.cx, cy: HA.view.cy, z: 15 }, true));
     await settle(page, 900);
     const caches = await page.evaluate(async () => { const o = {}; for (const k of await window.caches.keys()) o[k] = (await (await window.caches.open(k)).keys()).map(r => new URL(r.url).pathname); return o; });
-    ok(caches['ha-shell-v1'] && ['/js/app.js', '/js/osm.js', '/js/hours.js', '/styles.css', '/index.html', '/manifest.webmanifest'].every(p => caches['ha-shell-v1'].indexOf(p) >= 0), 'fișierele aplicației sunt păstrate pentru offline');
+    ok(caches['ha-shell-' + SW_VER] && ['/js/app.js', '/js/osm.js', '/js/hours.js', '/styles.css', '/index.html', '/manifest.webmanifest'].every(p => caches['ha-shell-' + SW_VER].indexOf(p) >= 0), 'fișierele aplicației sunt păstrate pentru offline');
     ok(caches['ha-tiles'] && caches['ha-tiles'].length >= 4, 'plăcile văzute se păstrează pentru offline (' + (caches['ha-tiles'] || []).length + ')');
     const before = S.tileLog.length, overBefore = S.overpassLog.length;
     await ctx.setOffline(true);

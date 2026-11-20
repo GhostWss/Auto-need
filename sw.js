@@ -2,9 +2,10 @@
    - fișierele aplicației: întâi de pe net (ca să primești versiunile noi), iar dacă nu merge, ce e salvat;
    - plăcile hărții: ce ai văzut deja rămâne salvat (cel mult MAX_TILES, câteva zile);
    - fonturile: salvate la prima folosire;
-   - locurile din OpenStreetMap (Overpass) nu trec pe aici: aplicația și le păstrează singură.
+   - fișierul cu locurile (data/places.json) se ia ca restul fișierelor aplicației: întâi de pe net, apoi ce e salvat;
+   - interogările Overpass nu trec pe aici: aplicația își păstrează singură locurile.
    Când schimbi fișiere ale aplicației, mărește VERSION ca telefoanele să ia varianta nouă. */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = 'ha-shell-' + VERSION;
 const TILES = 'ha-tiles';
 const FONTS = 'ha-fonts';
@@ -13,7 +14,7 @@ const TILE_TTL = 3 * 24 * 3600 * 1000;
 const NET_WAIT = 4000;
 const ASSETS = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
-  'js/hours.js', 'js/osm.js', 'js/app.js',
+  'js/hours.js', 'js/osm.js', 'js/app.js', 'data/places.json',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon.svg', 'icons/apple-touch-icon.png'
 ];
 const TILE_RE = /\/\d{1,2}\/\d+\/\d+(@2x)?\.(png|jpe?g|webp)$/i;

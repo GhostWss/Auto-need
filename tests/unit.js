@@ -153,4 +153,151 @@ test('adrese de legătură OSM', () => {
   assert.strictEqual(O.osmEditUrl('w9'), 'https://www.openstreetmap.org/edit?way=9');
 });
 
-console.log(passed + ' teste trecute' + (process.exitCode ? ', cu erori' : ''));
+/* ---------- încărcarea de la mai multe servere Overpass ---------- */
+const asyncTests = [];
+function atest(name, fn) { asyncTests.push([name, fn]); }
+const HOSTS = ['overpass-api.de', 'overpass.openstreetmap.fr', 'overpass.private.coffee', 'overpass.kumi.systems'];
+const EL = [{ type: 'node', id: 1, lat: 44.43, lon: 26.10, tags: { amenity: 'fuel', name: 'Test' } }];
+
+/* „rețea” falsă: pentru fiecare server hotărăște comportamentul (pică, nu răspunde, răspunde după un timp) */
+function fakeNet(behaviour) {
+  const log = [], t0 = Date.now();
+  global.fetch = (url, opts) => {
+    const host = new URL(url).host;
+    const q = decodeURIComponent((opts.body || '').replace(/^data=/, ''));
+    const rec = { host, at: Date.now() - t0, aborted: false, strict: /ISO3166-2/.test(q) };
+    log.push(rec);
+    const b = behaviour(host, rec) || { fail: 502 };
+    return new Promise((resolve, reject) => {
+      const onAbort = () => { rec.aborted = true; const e = new Error('aborted'); e.name = 'AbortError'; reject(e); };
+      if (opts.signal) { if (opts.signal.aborted) return onAbort(); opts.signal.addEventListener('abort', onAbort); }
+      if (b.hang) return;
+      setTimeout(() => {
+        if (rec.aborted) return;
+        if (b.fail) return resolve({ ok: false, status: b.fail });
+        resolve({ ok: true, status: 200, json: async () => ({ version: 0.6, osm3s: { timestamp_osm_base: '2026-11-20T18:00:00Z' }, elements: b.elements || [] }) });
+      }, b.delay || 0);
+    });
+  };
+  return log;
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function withNet(fn) {
+  const saved = Object.assign({}, O.CONFIG), realFetch = global.fetch;
+  O.CONFIG.hedge = 80; O.CONFIG.timeout = 600;
+  O.reset();
+  try { await fn(); } finally { Object.assign(O.CONFIG, saved); global.fetch = realFetch; O.reset(); }
+}
+
+atest('4 servere Overpass, toate https, fără repetări', () => {
+  assert.strictEqual(O.ENDPOINTS.length, 4);
+  assert.strictEqual(new Set(O.ENDPOINTS).size, 4);
+  assert.ok(O.ENDPOINTS.every(e => /^https:\/\/[^/]+\/api\/interpreter$/.test(e)));
+  same(O.ENDPOINTS.map(e => new URL(e).host), HOSTS);
+});
+atest('primul server pică (502): al doilea pornește imediat, fără să aștepte', async () => {
+  await withNet(async () => {
+    O.CONFIG.hedge = 5000;
+    const log = fakeNet(h => h === HOSTS[1] ? { elements: EL } : { fail: 502 });
+    const t0 = Date.now();
+    const r = await O.race('q');
+    assert.strictEqual(r.ep, 'https://' + HOSTS[1] + '/api/interpreter');
+    assert.ok(Date.now() - t0 < 1000, 'a durat ' + (Date.now() - t0) + ' ms');
+    same(log.map(l => l.host), [HOSTS[0], HOSTS[1]]);
+  });
+});
+atest('primul server nu răspunde: după pauza de așteptare pornește al doilea, iar primul e oprit', async () => {
+  await withNet(async () => {
+    const log = fakeNet(h => h === HOSTS[1] ? { elements: EL, delay: 10 } : { hang: true });
+    const r = await O.race('q');
+    assert.strictEqual(r.ep, 'https://' + HOSTS[1] + '/api/interpreter');
+    assert.ok(log[1].at >= 70, 'al doilea a pornit prea devreme: ' + log[1].at + ' ms');
+    assert.strictEqual(log[0].aborted, true, 'cererea rămasă fără răspuns trebuie oprită');
+    assert.strictEqual(log.length, 2, 'nu pornesc mai multe servere decât e nevoie');
+  });
+});
+atest('dacă primul răspunde bine, nu se mai cere de la altele', async () => {
+  await withNet(async () => {
+    const log = fakeNet(() => ({ elements: EL, delay: 20 }));
+    await O.race('q');
+    await wait(150);
+    same(log.map(l => l.host), [HOSTS[0]]);
+  });
+});
+atest('serverul care a pierdut merge la coadă data viitoare, cel care a mers merge primul', async () => {
+  await withNet(async () => {
+    O.CONFIG.hedge = 5000;
+    let log = fakeNet(h => h === HOSTS[1] ? { elements: EL } : { fail: 502 });
+    await O.race('q');
+    log = fakeNet(() => ({ elements: EL }));
+    await O.race('q');
+    same(log.map(l => l.host), [HOSTS[1]], 'a doua oară începe cu serverul care a răspuns');
+    log = fakeNet(h => h === HOSTS[1] ? { fail: 429 } : { elements: EL });
+    O.reset();
+    await O.race('q');
+    log = fakeNet(() => ({ elements: EL }));
+    await O.race('q');
+    assert.notStrictEqual(log[0].host, HOSTS[1], 'serverul cu 429 nu mai e primul');
+  });
+});
+atest('toate serverele pică: eroare după ce au fost încercate toate, o singură dată fiecare', async () => {
+  await withNet(async () => {
+    const log = fakeNet(() => ({ fail: 504 }));
+    await assert.rejects(() => O.race('q'), /HTTP 504/);
+    same(log.map(l => l.host).sort(), HOSTS.slice().sort());
+  });
+});
+atest('toate serverele tac: se oprește la limita de timp, nu așteaptă la nesfârșit', async () => {
+  await withNet(async () => {
+    O.CONFIG.hedge = 50; O.CONFIG.timeout = 200;
+    const log = fakeNet(() => ({ hang: true }));
+    const t0 = Date.now();
+    await assert.rejects(() => O.race('q'));
+    assert.ok(Date.now() - t0 < 1000, 'a durat ' + (Date.now() - t0) + ' ms');
+    assert.strictEqual(log.length, 4);
+  });
+});
+atest('load: zona nu e găsită după limite → interogare pe dreptunghi', async () => {
+  await withNet(async () => {
+    const log = fakeNet((h, rec) => rec.strict ? { elements: [] } : { elements: EL });
+    const info = {};
+    const r = await O.load('b', info);
+    assert.strictEqual(r.length, 1);
+    same(log.map(l => l.strict), [true, false]);
+    assert.strictEqual(info.ts, Date.parse('2026-11-20T18:00:00Z'));
+    assert.ok(/^https:\/\/overpass-api\.de/.test(info.endpoint));
+  });
+});
+atest('load: serverele pică → nu cere și dreptunghiul (ar dubla așteptarea)', async () => {
+  await withNet(async () => {
+    const log = fakeNet(() => ({ fail: 502 }));
+    await assert.rejects(() => O.load('i'), /HTTP 502/);
+    assert.ok(log.every(l => l.strict), 'doar interogarea pe limite');
+  });
+});
+atest('load: dreptunghiul gol = eroare (nu salvăm o zonă fără locuri)', async () => {
+  await withNet(async () => {
+    fakeNet(() => ({ elements: [] }));
+    await assert.rejects(() => O.load('b'), /nu a întors/);
+  });
+});
+atest('load: răspuns cu eroare de la server (remark) = server picat, trece la următorul', async () => {
+  await withNet(async () => {
+    O.CONFIG.hedge = 5000;
+    const log = fakeNet(h => h === HOSTS[0] ? { elements: [], remark: 'runtime error: Query timed out' } : { elements: EL });
+    global.fetch = (url, opts) => {
+      const host = new URL(url).host;
+      return Promise.resolve({ ok: true, status: 200, json: async () => host === HOSTS[0] ? { elements: [], remark: 'runtime error: Query timed out' } : { elements: EL } });
+    };
+    const r = await O.load('b');
+    assert.strictEqual(r.length, 1);
+  });
+});
+
+(async () => {
+  for (const [name, fn] of asyncTests) {
+    try { await fn(); passed++; }
+    catch (e) { console.error('✗ ' + name + '\n  ' + (e && e.message)); process.exitCode = 1; }
+  }
+  console.log(passed + ' teste trecute' + (process.exitCode ? ', cu erori' : ''));
+})();

@@ -7,7 +7,7 @@ Se instalează pe telefon ca o aplicație obișnuită (iPhone și Android), făr
 ## Ce face
 
 - Harta OpenStreetMap, trasă cu degetul și mărită cu două degete. Locurile apropiate se strâng în grupuri cu număr.
-- Locurile vin din OpenStreetMap (Overpass): benzinării, service-uri, vulcanizări, spălătorii, magazine de piese. Se descarcă la prima deschidere, se păstrează în telefon și se reîmprospătează după 7 zile.
+- Locurile vin din OpenStreetMap: benzinării, service-uri, vulcanizări, spălătorii, magazine de piese. Se iau dintr-un fișier de pe site (`data/places.json`, refăcut în fiecare noapte), se păstrează în telefon și se reîmprospătează zilnic. Dacă fișierul lipsește sau e foarte vechi, aplicația întreabă direct serverele Overpass.
 - Căutare după nume, adresă sau serviciu („ulei”, „motorină”, „geometrie”), filtre pe categorii și „Deschise acum” (ora României).
 - Lista locurilor, cele mai apropiate primele (de tine, dacă dai acces la locație).
 - Fișa fiecărui loc: program pe zile, telefoane (Sună / Copiază), site, servicii, navigare în Google Maps, Waze sau Apple Maps, legătură spre locul din OpenStreetMap.
@@ -25,6 +25,8 @@ python3 -m http.server 8080
 
 Apoi deschide <http://localhost:8080>.
 
+Fișierul `data/places.json` e deja în proiect. Ca să-l refaci acum din OpenStreetMap: `node tools/fetch-places.js` (Node 18 sau mai nou).
+
 ## Cum o pui pe internet (GitHub Pages)
 
 1. Pune toate fișierele din acest folder într-un depozit GitHub (în rădăcină, nu într-un subfolder).
@@ -32,7 +34,13 @@ Apoi deschide <http://localhost:8080>.
 3. După un minut, adresa e `https://NUMELE-TAU.github.io/NUMELE-DEPOZITULUI/`. Deschide-o pe telefon.
 4. Pe Android: meniul browserului → **Instalează aplicația**. Pe iPhone, în Safari: **Distribuie → Adaugă pe ecranul principal**.
 
-Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v2`), ca telefoanele să ia varianta nouă.
+Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v3`), ca telefoanele să ia varianta nouă.
+
+### Locurile se refac singure în fiecare noapte
+
+Acțiunea GitHub din `.github/workflows/actualizeaza-locuri.yml` rulează `tools/fetch-places.js`, care ia locurile din OpenStreetMap și le scrie în `data/places.json`. Dacă s-a schimbat ceva, le salvează în depozit, iar site-ul se publică din nou. O poți porni și de mână: fila **Actions → Actualizează locurile → Run workflow**.
+
+De ce așa: serverele publice Overpass sunt deseori aglomerate (seara mai ales) și pot răspunde în zeci de secunde sau deloc. Cu fișierul de pe site, harta se umple imediat, iar Overpass rămâne doar ca rezervă.
 
 ## Cum e făcută
 
@@ -40,7 +48,9 @@ Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v2`), ca te
 | --- | --- |
 | `index.html`, `styles.css` | Pagina și aspectul |
 | `js/app.js` | Harta (plăci OpenStreetMap pe canvas, fără bibliotecă externă), pini și grupuri, gesturi, listă, fișe, evaluări |
-| `js/osm.js` | Interogarea Overpass și transformarea etichetelor OSM în categorie, servicii, telefon, adresă |
+| `js/osm.js` | Interogarea Overpass (mai multe servere, cererile pornesc eșalonat și câștigă primul răspuns bun) și transformarea etichetelor OSM în categorie, servicii, telefon, adresă |
+| `data/places.json` | Locurile din OpenStreetMap, refăcute zilnic (vezi `data/README.md` pentru licență) |
+| `tools/fetch-places.js`, `.github/workflows/` | Descărcarea de noapte a locurilor |
 | `js/hours.js` | Citește `opening_hours` din OSM și spune dacă e deschis acum |
 | `sw.js` | Lucrul fără internet: fișierele aplicației, plăcile văzute, fonturile |
 | `manifest.webmanifest`, `icons/` | Instalarea pe telefon |
@@ -52,7 +62,7 @@ Nu are pași de compilare și nu are dependențe. Scripturile sunt clasice, nu m
 
 - **Harta și locurile sunt din OpenStreetMap**, licența ODbL. Atribuirea „© OpenStreetMap” apare pe hartă și în „Despre”. Nu o scoate.
 - **Serverul de plăci `tile.openstreetmap.org`** e gratuit, dar pentru uz ușor: încercări și un număr mic de utilizatori. Dacă aplicația prinde, treci la un furnizor de plăci (MapTiler, Stadia Maps, Thunderforest, Jawg sau propriul server) schimbând adresa `TILE_URL` de la începutul lui `js/app.js` și respectând atribuirea cerută de furnizor. Vezi <https://operations.osmfoundation.org/policies/tiles/>.
-- **Serverele Overpass** publice sunt tot pentru uz rezonabil. Aplicația face două cereri la prima deschidere și apoi una la 7 zile. La mulți utilizatori e mai bine ca un script să descarce datele o dată pe zi și să le pună într-un fișier pe site, iar aplicația să-l citească de acolo.
+- **Serverele Overpass** publice sunt tot pentru uz rezonabil. De aceea locurile se descarcă o dată pe noapte într-un fișier de pe site (`data/places.json`), iar aplicațiile îl citesc de acolo. Doar dacă fișierul lipsește sau are peste 7 zile, aplicația întreabă direct Overpass.
 - **Fonturile** (Barlow) se iau de la Google Fonts. Dacă vrei fără cereri către Google, pune fonturile în proiect și scoate cele trei linii care pomenesc `fonts.googleapis.com` și `fonts.gstatic.com` din `index.html`; aplicația are fonturi de rezervă și arată bine și așa.
 
 ## Ce rămâne local deocamdată
@@ -62,7 +72,6 @@ Notele și serviciile completate de șoferi se salvează în telefonul fiecărui
 ## Idei pentru mai departe
 
 - Server și conturi pentru note și completări comune, cu moderare.
-- Descărcarea zilnică a datelor din OpenStreetMap într-un fișier de pe site (încărcare mai rapidă și fără încărcare pe Overpass).
 - Prețuri la combustibil pe fișa benzinăriei.
 - Butonul „Înapoi” de pe Android care închide fișa.
 - Alte orașe.

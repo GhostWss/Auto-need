@@ -12,12 +12,18 @@
     i: { name: 'Ilfov', iso: 'RO-IF', box: [44.15, 25.70, 44.80, 26.50] }
   };
 
-  /* Servere Overpass publice, încercate pe rând */
+  /* Servere Overpass publice. Cererile pornesc eșalonat (vezi `race`) și câștigă primul răspuns bun,
+     așa că un server căzut sau aglomerat nu mai blochează încărcarea. */
   var ENDPOINTS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass.private.coffee/api/interpreter'
+    'https://overpass.openstreetmap.fr/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter'
   ];
+  /* hedge: după câte ms pornește și al doilea server dacă primul nu a răspuns; timeout: cât așteptăm un răspuns;
+     cool: cât timp un server care a picat rămâne la coadă */
+  var CONFIG = { hedge: 6000, timeout: 40000, cool: 10 * 60 * 1000 };
+  var cool = {}, good = null;
 
   var FILTERS = [
     '["amenity"="fuel"]',
@@ -30,12 +36,12 @@
 
   function query(zone) {
     var body = FILTERS.map(function (f) { return 'nwr' + f + '(area.a);'; }).join('');
-    return '[out:json][timeout:90];area["ISO3166-2"="' + ZONES[zone].iso + '"]->.a;(' + body + ');out center tags qt;';
+    return '[out:json][timeout:40];area["ISO3166-2"="' + ZONES[zone].iso + '"]->.a;(' + body + ');out center tags qt;';
   }
   function queryBox(zone) {
     var box = ZONES[zone].box.join(',');
     var body = FILTERS.map(function (f) { return 'nwr' + f + '(' + box + ');'; }).join('');
-    return '[out:json][timeout:90];(' + body + ');out center tags qt;';
+    return '[out:json][timeout:40];(' + body + ');out center tags qt;';
   }
 
   /* etichetele serviciilor, pe categorii */
@@ -240,8 +246,8 @@
     return 'https://www.openstreetmap.org/edit?' + kind + '=' + id.slice(1);
   }
 
-  function post(endpoint, q, timeout) {
-    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  function post(endpoint, q, timeout, ctrl) {
+    ctrl = ctrl || (typeof AbortController !== 'undefined' ? new AbortController() : null);
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeout) : null;
     var done = function () { if (timer) clearTimeout(timer); };
     return fetch(endpoint, {
@@ -260,28 +266,75 @@
     }, function (e) { done(); throw e; });
   }
 
-  /* Încarcă o zonă: întâi după limitele administrative, apoi (dacă nu merge) după dreptunghi. */
-  async function load(zone) {
-    var tries = [{ q: query(zone), strict: true }, { q: queryBox(zone), strict: false }];
-    var lastErr = null;
-    for (var a = 0; a < tries.length; a++) {
-      for (var e = 0; e < ENDPOINTS.length; e++) {
-        try {
-          var j = await post(ENDPOINTS[e], tries[a].q, 35000);
-          if (!j.elements.length && tries[a].strict) { var none = new Error('Zona nu a întors rezultate'); none.empty = true; throw none; }
-          return normalize(j.elements, zone);
-        } catch (err) {
-          lastErr = err;
-          if (err && err.empty) break;   /* zona nu există în interogarea pe limite: treci direct la dreptunghi */
-        }
+  /* Cere aceeași interogare de la mai multe servere: pornește primul, iar dacă pică sau nu răspunde în
+     CONFIG.hedge ms pornește și următorul. Câștigă primul răspuns bun, iar celelalte cereri se opresc.
+     `valid(json)` fals = „serverul n-are zona”: oprește totul și raportează `empty`, ca să se treacă la dreptunghi.
+     Serverele care au picat rămân la coadă CONFIG.cool ms; cel care a răspuns ultima dată merge primul. */
+  function race(q, valid) {
+    return new Promise(function (resolve, reject) {
+      var now = Date.now();
+      var isCool = function (e) { return !!cool[e] && now - cool[e] < CONFIG.cool; };
+      var list = ENDPOINTS.filter(function (e) { return !isCool(e); }).concat(ENDPOINTS.filter(isCool));
+      if (good && list.indexOf(good) > 0 && !isCool(good)) { list.splice(list.indexOf(good), 1); list.unshift(good); }
+      var started = 0, active = 0, finished = false, timer = null, lastErr = null, ctrls = [];
+      function end(fn, value) {
+        if (finished) return;
+        finished = true; clearTimeout(timer);
+        ctrls.forEach(function (c) { try { c.abort(); } catch (e) {} });
+        fn(value);
       }
+      function next() {
+        clearTimeout(timer);
+        if (finished || started >= list.length) return;
+        var ep = list[started++];
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        if (ctrl) ctrls.push(ctrl);
+        active++;
+        post(ep, q, CONFIG.timeout, ctrl).then(function (j) {
+          if (valid && !valid(j)) { var none = new Error('Zona nu a întors rezultate'); none.empty = true; throw none; }
+          return j;
+        }).then(function (j) {
+          active--;
+          good = ep; delete cool[ep];
+          end(resolve, { j: j, ep: ep });
+        }, function (err) {
+          active--;
+          if (finished) return;
+          lastErr = err;
+          if (err && err.empty) { end(reject, err); return; }
+          cool[ep] = Date.now();
+          if (started < list.length) next();
+          else if (active === 0) end(reject, lastErr || new Error('Nu am putut încărca datele'));
+        });
+        if (!finished && started < list.length) timer = setTimeout(next, CONFIG.hedge);
+      }
+      next();
+    });
+  }
+
+  /* Încarcă o zonă: întâi după limitele administrative, apoi (dacă zona nu s-a găsit) după dreptunghi.
+     `info`, dacă e dat, primește `ts` (momentul datelor din OpenStreetMap, în ms) și `endpoint`. */
+  async function load(zone, info) {
+    var has = function (j) { return j.elements.length > 0; };
+    var got;
+    try {
+      got = await race(query(zone), has);
+    } catch (err) {
+      if (!(err && err.empty)) throw err;   /* serverele nu răspund: același lucru cerut altfel nu ajută */
+      got = await race(queryBox(zone), has);
     }
-    throw lastErr || new Error('Nu am putut încărca datele');
+    if (info) {
+      var base = got.j.osm3s ? Date.parse(got.j.osm3s.timestamp_osm_base) : NaN;
+      info.ts = isFinite(base) ? base : Date.now();
+      info.endpoint = got.ep;
+    }
+    return normalize(got.j.elements, zone);
   }
 
   return {
-    ZONES: ZONES, ENDPOINTS: ENDPOINTS, SVC: SVC,
+    ZONES: ZONES, ENDPOINTS: ENDPOINTS, CONFIG: CONFIG, SVC: SVC,
     query: query, queryBox: queryBox, classify: classify, normalize: normalize,
-    fmtPhone: fmtPhone, osmUrl: osmUrl, osmEditUrl: osmEditUrl, load: load, post: post
+    fmtPhone: fmtPhone, osmUrl: osmUrl, osmEditUrl: osmEditUrl, load: load, post: post, race: race,
+    reset: function () { cool = {}; good = null; }
   };
 });
