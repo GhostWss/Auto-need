@@ -448,13 +448,18 @@ test('politica: există în română și engleză, e legată din aplicație și 
   assert.ok(/href="confidentialitate\.html"/.test(read('js/app.js')), 'legătura din „Despre și date”');
   assert.ok(/'confidentialitate\.html'/.test(read('sw.js')), 'pagina e în lista service worker-ului');
   assert.ok(/https:\/\/github\.com\/GhostWss\/Auto-need\/issues/.test(POLICY), 'are o cale de contact');
+  /* același e-mail de contact în română și în engleză (e și în fișa din Google Play) */
+  const at = POLICY.indexOf('id="en"');
+  const mails = part => (part.match(/href="mailto:([^"]+)"/g) || []).map(x => /mailto:([^"]+)"/.exec(x)[1]);
+  const ro = mails(POLICY.slice(0, at)), en = mails(POLICY.slice(at));
+  assert.ok(ro.length === 1 && en.length === 1 && ro[0] === en[0] && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(ro[0]), 'un singur e-mail de contact, la fel în ambele limbi');
 });
 test('politica: toate legăturile din ea sunt https sau locale, cele externe cu rel="noopener" dacă se deschid în fereastră nouă', () => {
   const links = POLICY.match(/<a [^>]*>/g) || [];
   assert.ok(links.length >= 10);
   links.forEach(a => {
     const href = /href="([^"]+)"/.exec(a)[1];
-    assert.ok(/^(https:\/\/|#|\.\/)/.test(href), 'legătură nesigură: ' + href);
+    assert.ok(/^(https:\/\/|#|\.\/|mailto:[^@\s]+@[^@\s]+$)/.test(href), 'legătură nesigură: ' + href);
     if (/target="_blank"/.test(a)) assert.ok(/rel="noopener"/.test(a), 'lipsește noopener: ' + href);
   });
 });
