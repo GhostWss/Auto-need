@@ -1,21 +1,23 @@
 /* Harta Auto: merge și fără internet.
    - fișierele aplicației: întâi de pe net (ca să primești versiunile noi), iar dacă nu merge, ce e salvat;
    - plăcile hărții: ce ai văzut deja rămâne salvat (cel mult MAX_TILES, câteva zile);
-   - fonturile: salvate la prima folosire;
+   - fonturile sunt în aplicație (fonts/), deci se păstrează odată cu fișierele ei;
    - fișierul cu locurile (data/places.json) se ia ca restul fișierelor aplicației: întâi de pe net, apoi ce e salvat;
    - interogările Overpass nu trec pe aici: aplicația își păstrează singură locurile.
    Când schimbi fișiere ale aplicației, mărește VERSION ca telefoanele să ia varianta nouă. */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL = 'ha-shell-' + VERSION;
 const TILES = 'ha-tiles';
-const FONTS = 'ha-fonts';
+const OLD_FONTS = 'ha-fonts';   /* cache-ul de până la v4, când fonturile veneau de la Google */
 const MAX_TILES = 500;
 const TILE_TTL = 3 * 24 * 3600 * 1000;
 const NET_WAIT = 4000;
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'manifest.webmanifest',
+  './', 'index.html', 'styles.css', 'manifest.webmanifest', 'confidentialitate.html',
   'js/hours.js', 'js/osm.js', 'js/app.js', 'data/places.json',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon.svg', 'icons/apple-touch-icon.png'
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon.svg', 'icons/apple-touch-icon.png',
+  'fonts/barlow-400-latin-ext.woff2', 'fonts/barlow-400-latin.woff2', 'fonts/barlow-500-latin-ext.woff2', 'fonts/barlow-500-latin.woff2', 'fonts/barlow-600-latin-ext.woff2', 'fonts/barlow-600-latin.woff2',
+  'fonts/barlow-semi-condensed-500-latin-ext.woff2', 'fonts/barlow-semi-condensed-500-latin.woff2', 'fonts/barlow-semi-condensed-600-latin-ext.woff2', 'fonts/barlow-semi-condensed-600-latin.woff2', 'fonts/barlow-semi-condensed-700-latin-ext.woff2', 'fonts/barlow-semi-condensed-700-latin.woff2'
 ];
 const TILE_RE = /\/\d{1,2}\/\d+\/\d+(@2x)?\.(png|jpe?g|webp)$/i;
 
@@ -30,7 +32,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k.indexOf('ha-shell-') === 0 && k !== SHELL).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => (k.indexOf('ha-shell-') === 0 && k !== SHELL) || k === OLD_FONTS).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -43,8 +45,6 @@ self.addEventListener('fetch', e => {
     e.respondWith(shell(req));
   } else if (TILE_RE.test(url.pathname)) {
     e.respondWith(tile(e, req));
-  } else if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    e.respondWith(swr(e, req));
   }
   /* orice altceva (Overpass, OpenStreetMap) merge direct pe net */
 });
@@ -64,7 +64,15 @@ function shell(req) {
         const copy = res.clone();
         caches.open(SHELL).then(c => c.put(req, copy)).catch(() => {});
       }
-      if (!settled) { settled = true; resolve(res); }
+      if (settled) return;
+      settled = true;
+      if (res && !res.ok && req.mode === 'navigate') {
+        /* pagină care nu există (404) sau site în pană (5xx): mai bine ce avem salvat (pagina cerută, altfel harta) decât o pagină de eroare;
+           iar Chrome, într-o aplicație din Google Play, ia un 404 sau 5xx la deschidere drept o defecțiune a aplicației */
+        cached().then(r => resolve(r || res));
+        return;
+      }
+      resolve(res);
     }).catch(() => {
       clearTimeout(timer);
       cached().then(r => { if (!settled) { settled = true; resolve(r || Response.error()); } });
@@ -97,16 +105,4 @@ async function tile(e, req) {
 async function trim(cache) {
   const keys = await cache.keys();
   if (keys.length > MAX_TILES) await Promise.all(keys.slice(0, keys.length - MAX_TILES).map(k => cache.delete(k)));
-}
-
-/* fonturi: ce avem se afișează imediat, iar în fundal se reîmprospătează */
-async function swr(e, req) {
-  const cache = await caches.open(FONTS);
-  const hit = await cache.match(req);
-  const net = fetch(req).then(res => {
-    if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
-    return res;
-  }).catch(() => null);
-  e.waitUntil(net);
-  return hit || (await net) || Response.error();
 }

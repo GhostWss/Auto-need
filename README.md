@@ -36,7 +36,7 @@ Fișierul `data/places.json` e deja în proiect. Ca să-l refaci acum din OpenSt
 3. După un minut, adresa e `https://NUMELE-TAU.github.io/NUMELE-DEPOZITULUI/`. Deschide-o pe telefon.
 4. Pe Android: meniul browserului → **Instalează aplicația**. Pe iPhone, în Safari: **Distribuie → Adaugă pe ecranul principal**.
 
-Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v4`), ca telefoanele să ia varianta nouă.
+Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v5`), ca telefoanele să ia varianta nouă.
 
 ### Locurile se refac singure în fiecare noapte
 
@@ -54,8 +54,10 @@ De ce așa: serverele publice Overpass sunt deseori aglomerate (seara mai ales) 
 | `data/places.json` | Locurile din OpenStreetMap, refăcute zilnic (vezi `data/README.md` pentru licență) |
 | `tools/fetch-places.js`, `.github/workflows/` | Descărcarea de noapte a locurilor |
 | `js/hours.js` | Citește `opening_hours` din OSM și spune dacă e deschis acum |
-| `sw.js` | Lucrul fără internet: fișierele aplicației, plăcile văzute, fonturile |
+| `sw.js` | Lucrul fără internet: fișierele aplicației (cu fonturi și politica), plăcile văzute; la un 404 sau 5xx la deschidere arată pagina salvată, ca aplicația să nu pară defectă în Google Play |
 | `manifest.webmanifest`, `icons/` | Instalarea pe telefon |
+| `confidentialitate.html` | Politica de confidențialitate (română și engleză), legată din „Despre și date”; obligatorie la Google Play și App Store |
+| `fonts/` | Fonturile aplicației (Barlow, woff2, latin și latin-ext pentru ă, ș, ț) și licența lor |
 | `tests/` | Teste: `node tests/unit.js` (rapide) și `node tests/e2e.js` (în browser, cere pachetul `playwright`) |
 
 Nu are pași de compilare și nu are dependențe. Scripturile sunt clasice, nu module.
@@ -65,7 +67,11 @@ Nu are pași de compilare și nu are dependențe. Scripturile sunt clasice, nu m
 - **Harta și locurile sunt din OpenStreetMap**, licența ODbL. Atribuirea „© OpenStreetMap” apare pe hartă și în „Despre”. Nu o scoate.
 - **Serverul de plăci `tile.openstreetmap.org`** e gratuit, dar pentru uz ușor: încercări și un număr mic de utilizatori. Dacă aplicația prinde, treci la un furnizor de plăci (MapTiler, Stadia Maps, Thunderforest, Jawg sau propriul server) schimbând adresa `TILE_URL` de la începutul lui `js/app.js` și respectând atribuirea cerută de furnizor. Vezi <https://operations.osmfoundation.org/policies/tiles/>.
 - **Serverele Overpass** publice sunt tot pentru uz rezonabil. De aceea locurile se descarcă o dată pe noapte într-un fișier de pe site (`data/places.json`), iar aplicațiile îl citesc de acolo. Doar dacă fișierul lipsește sau are peste 7 zile, aplicația întreabă direct Overpass.
-- **Fonturile** (Barlow) se iau de la Google Fonts. Dacă vrei fără cereri către Google, pune fonturile în proiect și scoate cele trei linii care pomenesc `fonts.googleapis.com` și `fonts.gstatic.com` din `index.html`; aplicația are fonturi de rezervă și arată bine și așa.
+- **Fonturile** (Barlow și Barlow Semi Condensed, licență SIL Open Font License) sunt chiar în proiect, în `fonts/`, împreună cu licența (`fonts/OFL.txt`, trebuie păstrată). Aplicația nu cere nimic de la Google Fonts, deci nu are cereri în plus de declarat în politica de confidențialitate și merge la fel și fără net.
+
+## Politica de confidențialitate
+
+`confidentialitate.html` spune ce date folosește aplicația: ce rămâne în telefon, când se cere locația și ce servicii terțe contactează harta (OpenStreetMap, Overpass, GitHub Pages). Trebuie să rămână adevărată: dacă schimbi furnizorul de plăci, adaugi un server, un cookie, o statistică sau conturi, actualizeaz-o. `node tests/unit.js` pică dacă un server contactat de aplicație nu apare în politică sau dacă apar cookie-uri ori unelte de urmărire.
 
 ## Ce rămâne local deocamdată
 

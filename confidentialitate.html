@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Politica de confidențialitate · Harta Auto București–Ilfov</title>
+<meta name="description" content="Ce date folosește aplicația Harta Auto București–Ilfov, ce rămâne în telefonul tău și ce servicii terțe contactează.">
+<meta name="theme-color" content="#0b57c9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d141b" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+:root{
+  --bg:#f1f4f6;--surface:#ffffff;--fg:#12202c;--fg-2:#46566a;--line:#d7dee5;
+  --accent:#0b57c9;--soft:#e4eefc;
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0d141b;--surface:#16202a;--fg:#e8eef3;--fg-2:#b0bcc8;--line:#2b3a48;--accent:#79adff;--soft:#1b2d47;color-scheme:dark}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:400 17px/1.6 var(--font)}
+main{max-width:42rem;margin:0 auto;padding:max(20px,env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) max(40px,env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px))}
+a{color:var(--accent);text-underline-offset:2px}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.top{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:15px;margin:0 0 22px}
+h1{font:700 30px/1.15 var(--font);margin:0 0 6px;text-wrap:balance}
+h2{font:700 20px/1.25 var(--font);margin:34px 0 8px;text-wrap:balance}
+p{margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:1.25em}
+li{margin:0 0 6px}
+.meta{color:var(--fg-2);font-size:15px;margin:0 0 22px}
+.tldr{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:6px 18px 10px;margin:0 0 8px}
+.tldr h2{margin-top:12px}
+code{font:500 .92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--soft);padding:1px 5px;border-radius:5px;overflow-wrap:anywhere}
+hr{border:0;border-top:1px solid var(--line);margin:44px 0 6px}
+</style>
+</head>
+<body>
+<main>
+
+<nav class="top" aria-label="Navigare">
+  <a href="./">← Înapoi la hartă</a>
+  <a href="#en" hreflang="en" lang="en">English version ↓</a>
+</nav>
+
+<h1>Politica de confidențialitate</h1>
+<p class="meta">Harta Auto București–Ilfov · actualizată la 20 noiembrie 2026</p>
+
+<section class="tldr" aria-labelledby="pe-scurt">
+  <h2 id="pe-scurt">Pe scurt</h2>
+  <ul>
+    <li>Aplicația nu are conturi, reclame, statistici de utilizare sau cookie-uri de urmărire.</li>
+    <li>Nu are server propriu, deci nu primim și nu păstrăm nicio dată despre tine.</li>
+    <li>Notele tale, serviciile bifate și locurile descărcate rămân doar în telefonul tău.</li>
+    <li>Locația ta se folosește doar când apeși butonul de locație și nu pleacă din telefon.</li>
+    <li>Harta și lista de locuri vin de la servicii terțe. Acestea văd adresa IP a telefonului tău, ca la orice site (detalii mai jos).</li>
+  </ul>
+</section>
+
+<h2 id="cine">Cine publică aplicația</h2>
+<p>Harta Auto București–Ilfov este făcută și publicată de un dezvoltator independent (GitHub: <a href="https://github.com/GhostWss" rel="noopener">GhostWss</a>). Nu este un serviciu al unei firme sau al unei instituții. Locurile, programul, telefoanele și serviciile vin din OpenStreetMap.</p>
+
+<h2 id="local">Ce se păstrează în telefonul tău</h2>
+<p>Aplicația păstrează în telefon, și nicăieri altundeva:</p>
+<ul>
+  <li>notele de la 1 la 5 pe care le dai locurilor și serviciile pe care le bifezi (în <code>localStorage</code>);</li>
+  <li>lista de locuri descărcată din OpenStreetMap și data ultimei descărcări, ca aplicația să meargă și fără internet (în baza de date a browserului, <code>IndexedDB</code>);</li>
+  <li>copii pentru funcționarea fără internet: fișierele aplicației (cu tot cu fonturi) și plăcile hărții văzute recent, cel mult 500, pentru câteva zile (în memoria cache a aplicației).</li>
+</ul>
+<p>Nimic din acestea nu ajunge la noi sau la altcineva. Le poți șterge oricând: notele și serviciile, din „Despre și date” → „Șterge notele și completările mele”; restul, din setările telefonului (datele aplicației sau ale site-ului) sau dezinstalând aplicația.</p>
+
+<h2 id="locatia">Locația ta</h2>
+<p>Aplicația cere locația doar când apeși butonul țintă de pe hartă, iar telefonul îți cere permisiunea. O folosește ca să te arate pe hartă și să ordoneze lista după distanță. Poziția se ține în memorie cât timp aplicația e deschisă; nu se salvează și nu se trimite nicăieri. Dacă refuzi permisiunea, aplicația merge la fel, doar fără punctul tău de pe hartă. Poți retrage permisiunea oricând din setările telefonului.</p>
+<p>Atenție: când harta se mută pe locul tău, plăcile de hartă cerute de telefon arată serverului de hărți, aproximativ, ce zonă privești (vezi mai jos).</p>
+
+<h2 id="terti">Servicii terțe pe care le contactează aplicația</h2>
+<p>Când folosești aplicația, telefonul tău cere date direct de la aceste servicii. Fiecare vede adresa IP a telefonului și datele tehnice obișnuite (tipul browserului sau al aplicației) și le tratează după propria politică.</p>
+<ul>
+  <li><b>OpenStreetMap</b> (<code>tile.openstreetmap.org</code>): plăcile hărții. Serverul vede ce zonă a hărții ceri. <a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">Politica Fundației OpenStreetMap</a>.</li>
+  <li><b>Servere Overpass</b> (<code>overpass-api.de</code>, <code>overpass.openstreetmap.fr</code>, <code>overpass.private.coffee</code>, <code>overpass.kumi.systems</code>): lista locurilor, doar dacă fișierul cu locuri de pe site lipsește sau e prea vechi. Cererea este pentru toată zona București–Ilfov, nu pentru poziția ta.</li>
+  <li><b>GitHub Pages</b>: găzduiește aplicația și fișierul cu locuri. GitHub poate păstra jurnale tehnice (adresa IP, ora cererii). <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">Declarația de confidențialitate GitHub</a>.</li>
+</ul>
+<p>Fonturile sunt incluse în aplicație, deci nu se cer de la nimeni. Aplicația nu trimite acestor servicii notele tale, serviciile bifate sau poziția ta GPS.</p>
+
+<h2 id="legaturi">Legături care se deschid doar când le apeși</h2>
+<p>Navigarea în Google Maps, Waze sau Apple Maps (primesc coordonatele locului ales, ca destinație), editorul și paginile OpenStreetMap, site-ul, Facebook-ul sau Instagram-ul unui loc, apelul telefonic și e-mailul. Se deschid în alte aplicații sau site-uri, cu politicile lor.</p>
+
+<h2 id="date-locuri">Datele despre locuri</h2>
+<p>Numele, adresele, programul, telefoanele și celelalte informații despre locuri sunt date publice despre afaceri, din <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, © contribuitorii OpenStreetMap, sub licența ODbL. Nu sunt date despre utilizatorii aplicației. Dacă o informație despre un loc e greșită sau lipsește, o poți corecta în OpenStreetMap; apare în aplicație la următoarea actualizare de noapte.</p>
+
+<h2 id="copii">Copii</h2>
+<p>Aplicația nu e făcută pentru copii și nu colectează date de la nimeni, deci nici de la copii.</p>
+
+<h2 id="drepturi">Drepturile tale</h2>
+<p>Pentru că nu păstrăm date despre tine, nu avem ce să-ți arătăm sau să-ți ștergem din partea noastră. Ce există e în telefonul tău și îl controlezi tu (vezi mai sus). Pentru datele pe care le văd serviciile terțe, te poți adresa direct acelora.</p>
+
+<h2 id="schimbari">Schimbări</h2>
+<p>Dacă se schimbă ceva, de exemplu dacă adăugăm note comune cu conturi, actualizăm această pagină înainte, iar data de sus se schimbă.</p>
+
+<h2 id="contact">Contact</h2>
+<p>Întrebări despre confidențialitate: deschide un mesaj pe <a href="https://github.com/GhostWss/Auto-need/issues" target="_blank" rel="noopener">pagina de probleme a proiectului</a>. Mesajele de acolo sunt publice, așa că nu scrie în ele date personale.</p>
+
+<hr>
+
+<div id="en" lang="en">
+<h1>Privacy policy</h1>
+<p class="meta">Harta Auto București–Ilfov (“Auto Map Bucharest–Ilfov”) · updated 20 November 2026</p>
+
+<section class="tldr" aria-labelledby="in-short">
+  <h2 id="in-short">In short</h2>
+  <ul>
+    <li>The app has no accounts, ads, usage analytics or tracking cookies.</li>
+    <li>It has no server of its own, so we do not receive or keep any data about you.</li>
+    <li>Your ratings, ticked services and downloaded places stay on your phone only.</li>
+    <li>Your location is used only when you tap the location button and never leaves your phone.</li>
+    <li>The map and the list of places come from third-party services, which see your phone’s IP address like any website would (details below).</li>
+  </ul>
+</section>
+
+<h2>Who publishes the app</h2>
+<p>The app is made and published by an independent developer (GitHub: <a href="https://github.com/GhostWss" rel="noopener">GhostWss</a>). It is not a service of a company or an institution. Places, opening hours, phone numbers and services come from OpenStreetMap.</p>
+
+<h2>What is stored on your phone</h2>
+<p>The app keeps the following on your phone and nowhere else: the 1–5 ratings you give and the services you tick (<code>localStorage</code>); the list of places downloaded from OpenStreetMap and the time of the last download, so the app works offline (<code>IndexedDB</code>); and offline copies of the app files (fonts included) and of recently viewed map tiles, at most 500, for a few days (the app’s cache). None of this is sent to us or to anyone else. You can delete your ratings and ticked services in “Despre și date” → “Șterge notele și completările mele”, and everything else in your phone’s settings (app or site data) or by uninstalling the app.</p>
+
+<h2>Your location</h2>
+<p>The app asks for your location only when you tap the target button on the map, and your phone asks for permission first. It is used to show you on the map and to sort the list by distance. The position is kept in memory while the app is open; it is not saved and not sent anywhere. If you refuse, the app works the same, without your dot on the map. You can withdraw the permission at any time in your phone’s settings. Note that when the map moves to your location, the map tiles your phone requests tell the map server, roughly, which area you are looking at (see below).</p>
+
+<h2>Third-party services the app contacts</h2>
+<p>When you use the app, your phone requests data directly from these services. Each sees your phone’s IP address and the usual technical details (browser or app type) and handles them under its own policy.</p>
+<ul>
+  <li><b>OpenStreetMap</b> (<code>tile.openstreetmap.org</code>): map tiles; the server sees which part of the map you request. <a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">OpenStreetMap Foundation privacy policy</a>.</li>
+  <li><b>Overpass servers</b> (<code>overpass-api.de</code>, <code>overpass.openstreetmap.fr</code>, <code>overpass.private.coffee</code>, <code>overpass.kumi.systems</code>): the list of places, only if the places file on the site is missing or too old. The request covers the whole Bucharest–Ilfov area, not your position.</li>
+  <li><b>GitHub Pages</b>: hosts the app and the places file; GitHub may keep technical logs (IP address, request time). <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub privacy statement</a>.</li>
+</ul>
+<p>The fonts are included in the app, so they are requested from no one. The app does not send these services your ratings, ticked services or GPS position. Links you tap (Google Maps, Waze, Apple Maps, OpenStreetMap, a place’s website or social pages, phone calls, e-mail) open other apps or sites with their own policies; the navigation links receive the chosen place’s coordinates as the destination.</p>
+
+<h2>Data about places</h2>
+<p>Names, addresses, opening hours, phone numbers and other details of places are public business information from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, © OpenStreetMap contributors, under the ODbL licence. They are not data about the app’s users. To correct or add a place, edit OpenStreetMap; the change shows up in the app after the next nightly update.</p>
+
+<h2>Children, your rights, changes</h2>
+<p>The app is not aimed at children and collects data from no one. Because we keep no data about you, there is nothing for us to show or delete; what exists is on your phone and under your control, and for data seen by third-party services you can contact those services directly. If something changes (for example, shared ratings with accounts), we will update this page first and change the date above.</p>
+
+<h2>Contact</h2>
+<p>Questions about privacy: open a message on the project’s <a href="https://github.com/GhostWss/Auto-need/issues" target="_blank" rel="noopener">issues page</a>. Messages there are public, so please do not include personal data.</p>
+</div>
+
+</main>
+</body>
+</html>

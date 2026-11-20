@@ -1089,7 +1089,9 @@ const okHome = (r, what) => {
     await page.evaluate(() => HA.setView({ cx: HA.view.cx, cy: HA.view.cy, z: 15 }, true));
     await settle(page, 900);
     const caches = await page.evaluate(async () => { const o = {}; for (const k of await window.caches.keys()) o[k] = (await (await window.caches.open(k)).keys()).map(r => new URL(r.url).pathname); return o; });
-    ok(caches['ha-shell-' + SW_VER] && ['/js/app.js', '/js/osm.js', '/js/hours.js', '/styles.css', '/index.html', '/manifest.webmanifest'].every(p => caches['ha-shell-' + SW_VER].indexOf(p) >= 0), 'fișierele aplicației sunt păstrate pentru offline');
+    ok(caches['ha-shell-' + SW_VER] && ['/js/app.js', '/js/osm.js', '/js/hours.js', '/styles.css', '/index.html', '/manifest.webmanifest', '/confidentialitate.html'].every(p => caches['ha-shell-' + SW_VER].indexOf(p) >= 0), 'fișierele aplicației (și politica de confidențialitate) sunt păstrate pentru offline');
+    eq(caches['ha-shell-' + SW_VER].filter(p => /^\/fonts\/.*\.woff2$/.test(p)).length, 12, 'și cele 12 fișiere de fonturi (latin și latin-ext) sunt păstrate pentru offline');
+    ok(!('ha-fonts' in caches), 'fără cache de fonturi de la Google');
     ok(caches['ha-tiles'] && caches['ha-tiles'].length >= 4, 'plăcile văzute se păstrează pentru offline (' + (caches['ha-tiles'] || []).length + ')');
     const before = S.tileLog.length, overBefore = S.overpassLog.length;
     await ctx.setOffline(true);
@@ -1101,8 +1103,43 @@ const okHome = (r, what) => {
     const px = await pxAt(page, 195, 400);
     ok(!close(px, [242, 239, 233], 6), 'și harta văzută mai devreme se vede din memorie: ' + px);
     ok(await page.locator('#net').isVisible(), 'cu mesajul „Fără conexiune”');
+    const offFaces = await page.evaluate(async () => (await document.fonts.load('600 16px "Barlow"', 'ăâîșț')).map(f => f.status));
+    ok(offFaces.length >= 2 && offFaces.every(s => s === 'loaded'), 'fără net: fonturile (și literele ă, ș, ț) se încarcă din memorie (' + offFaces + ')');
     eq(S.overpassLog.length, overBefore, 'fără cereri noi către Overpass');
+    await page.goto(base + 'confidentialitate.html');
+    eq(await page.locator('h1').first().textContent(), 'Politica de confidențialitate', 'fără net: și politica de confidențialitate se deschide din memorie');
     await ctx.setOffline(false);
+    /* Google Play (TWA): un 404 sau 5xx la deschidere e tratat ca o defecțiune a aplicației, deci arătăm harta salvată, nu o pagină de eroare */
+    const r404 = await page.goto(base + 'pagina-care-nu-exista.html');
+    eq(r404.status(), 200, 'o pagină care nu există (404) deschide harta salvată, nu o eroare');
+    eq(await page.locator('#map').count(), 1, 'și aplicația e pe ecran');
+    await ctx.route(/\/confidentialitate\.html$/, route => route.fulfill({ status: 503, body: 'pe moment indisponibil' }));   /* pe contextul întreg: cererile service worker-ului nu trec prin rutele paginii */
+    await page.goto(base);
+    const r503 = await page.goto(base + 'confidentialitate.html');
+    eq(r503.status(), 200, 'la o eroare de server (503) se arată copia salvată a paginii');
+    eq(await page.locator('h1').first().textContent(), 'Politica de confidențialitate', 'cea cerută, nu o pagină de eroare');
+    await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Fonturile sunt în aplicație, nu vin de la Google', async () => {
+    const S = state0();
+    const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, PHONE));
+    await L.installMocks(ctx, S);
+    const page = await ctx.newPage();
+    const hosts = new Set(), fontReqs = [];
+    page.on('request', r => { const u = new URL(r.url()); hosts.add(u.host); if (/\.woff2$/.test(u.pathname)) fontReqs.push(u.pathname); });
+    await page.goto(base + '?debug');
+    await page.waitForFunction(() => window.HA && HA.places.length > 0);
+    const faces = await page.evaluate(async () => (await document.fonts.load('600 16px "Barlow"', 'ăâîșț')).map(f => f.family + ' ' + f.weight + ' ' + f.status));
+    ok(faces.length >= 2 && faces.every(f => /loaded$/.test(f)), 'Barlow se încarcă, inclusiv literele românești ă, ș, ț (' + faces + ')');
+    const heads = await page.evaluate(async () => (await document.fonts.load('700 24px "Barlow Semi Condensed"', 'Harta Auto')).map(f => f.family + ' ' + f.weight + ' ' + f.status));
+    ok(heads.length >= 1 && heads.every(f => /loaded$/.test(f)), 'și Barlow Semi Condensed, pentru titluri (' + heads + ')');
+    ok(fontReqs.length >= 2 && fontReqs.every(p => /^\/fonts\//.test(p)), 'fișierele de font vin de pe același site (' + fontReqs.length + ')');
+    ok(![...hosts].some(h => /fonts\.(googleapis|gstatic)\.com/.test(h)), 'nicio cerere către Google Fonts (servere contactate: ' + [...hosts].filter(h => !/^127\.0\.0\.1/.test(h)).join(', ') + ')');
+    eq(S.unexpected, [], 'nicio cerere în afara celor prevăzute');
+    const fam = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+    ok(/^"?Barlow"?,/.test(fam), 'corpul paginii folosește Barlow (' + fam + ')');
     await ctx.close();
   });
 
@@ -1115,6 +1152,18 @@ const okHome = (r, what) => {
     await page.waitForSelector('#about:not([hidden])');
     const txt = await page.locator('#aboutCard').innerText();
     ok(/24/.test(txt) && /OpenStreetMap/.test(txt) && /ODbL/.test(txt), '„Despre” arată numărul de locuri și sursa datelor (ODbL)');
+    ok(/Fără conturi, reclame sau urmărire/.test(txt), '„Despre” spune: fără conturi, reclame sau urmărire');
+    const pl = page.locator('#aboutCard a.privacy-link');
+    eq(await pl.count(), 1, '„Despre” are legătura către politica de confidențialitate');
+    eq([await pl.getAttribute('href'), await pl.getAttribute('target'), await pl.getAttribute('rel')], ['confidentialitate.html', '_blank', 'noopener'], 'duce la confidentialitate.html, într-o fereastră nouă, cu noopener');
+    const polPage = await ctx.newPage();
+    const polRes = await polPage.goto(base + 'confidentialitate.html');
+    eq(polRes.status(), 200, 'pagina de confidențialitate se deschide');
+    eq(await polPage.locator('h1').allTextContents(), ['Politica de confidențialitate', 'Privacy policy'], 'are titlul în română și în engleză');
+    ok(await polPage.locator('a[href="./"]').count() >= 1, 'are legătură „Înapoi la hartă”');
+    const overflow = await polPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    ok(overflow <= 0, 'pe telefon pagina nu se derulează pe orizontală (' + overflow + ' px în plus)');
+    await polPage.close();
     ok(await page.locator('[data-act="install"]').count() === 1, 'când browserul permite, apare „Instalează aplicația”');
     await page.locator('[data-act="install"]').click();
     eq(await page.evaluate(() => window.__prompted), 1, '„Instalează aplicația” cere instalarea');

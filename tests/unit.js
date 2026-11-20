@@ -397,6 +397,68 @@ atest('load: răspuns cu eroare de la server (remark) = server picat, trece la u
   });
 });
 
+/* ---------- politica de confidențialitate: spune adevărul despre ce face aplicația ----------
+   Dacă adaugi un server nou, un cookie sau o statistică, testele de mai jos cad până actualizezi confidentialitate.html. */
+const fs = require('fs'), path = require('path');
+const ROOT = path.join(__dirname, '..');
+const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const POLICY = read('confidentialitate.html');
+const hostOf = u => new URL(u).hostname;
+test('politica: numește fiecare server pe care îl contactează aplicația singură', () => {
+  const app = read('js/app.js'), html = read('index.html');
+  const tile = /const TILE_URL = .*?'(https:\/\/[^']+)'/.exec(app);
+  assert.ok(tile, 'nu găsesc TILE_URL în app.js');
+  const hosts = new Set([hostOf(tile[1].replace(/\{[xyz]\}/g, '1'))].concat(O.ENDPOINTS.map(hostOf)));
+  (html.match(/https:\/\/fonts\.[a-z]+\.com/g) || []).forEach(u => hosts.add(hostOf(u)));
+  assert.ok(hosts.size >= 5, 'ar trebui să fie cel puțin plăcile și patru servere Overpass');
+  hosts.forEach(h => assert.ok(POLICY.indexOf(h) >= 0, 'lipsește din politică: ' + h));
+});
+test('politica: fonturile sunt în aplicație, nu la Google (și politica nu spune altceva)', () => {
+  ['index.html', 'styles.css', 'sw.js', 'js/app.js', 'js/osm.js', 'js/hours.js'].forEach(f => {
+    assert.ok(!/fonts\.(googleapis|gstatic)\.com/.test(read(f)), f + ' cheamă Google Fonts, iar politica spune că fonturile sunt incluse');
+  });
+  assert.ok(!/fonts\.(googleapis|gstatic)\.com|Google Fonts/.test(POLICY), 'politica pomenește Google Fonts, dar aplicația nu le mai folosește');
+  const css = read('styles.css'), sw = read('sw.js');
+  const files = (css.match(/url\(fonts\/[^)]+\)/g) || []).map(u => u.slice(4, -1));
+  assert.strictEqual(files.length, 12, 'șase greutăți × două seturi de litere (latin și latin-ext, pentru ă ș ț)');
+  files.forEach(f => {
+    const b = fs.readFileSync(path.join(ROOT, f));
+    assert.strictEqual(b.slice(0, 4).toString(), 'wOF2', f + ' nu e un fișier woff2');
+    assert.ok(sw.indexOf("'" + f + "'") >= 0, f + ' nu e în lista service worker-ului (n-ar merge offline)');
+  });
+  assert.ok(/Copyright .* Barlow Project Authors/.test(read('fonts/OFL.txt')) && /SIL OPEN FONT LICENSE Version 1\.1/.test(read('fonts/OFL.txt')), 'fonts/OFL.txt: licența fonturilor');
+  assert.ok(/font-family:"Barlow Semi Condensed";font-style:normal;font-weight:700;[^}]*latin-ext/.test(css), 'și greutatea 700 pentru titluri');
+});
+test('politica: stocarea locală descrisă e cea folosită', () => {
+  const app = read('js/app.js'), sw = read('sw.js');
+  assert.ok(/localStorage/.test(app) && /localStorage/.test(POLICY), 'localStorage');
+  assert.ok(/indexedDB/.test(app) && /IndexedDB/.test(POLICY), 'IndexedDB');
+  const max = /MAX_TILES = (\d+)/.exec(sw)[1];
+  assert.ok(new RegExp('cel mult ' + max + '[ ,]').test(POLICY) && new RegExp('at most ' + max + '[ ,]').test(POLICY), 'numărul de plăci păstrate (' + max + ') e cel din sw.js');
+});
+test('politica: aplicația nu are cookie-uri, statistici sau urmărire', () => {
+  ['index.html', 'js/app.js', 'js/osm.js', 'js/hours.js', 'sw.js'].forEach(f => {
+    const m = /document\.cookie|sendBeacon|XMLHttpRequest|google-analytics|googletagmanager|gtag\(|fbq\(|matomo|plausible|mixpanel|sentry/i.exec(read(f));
+    assert.ok(!m, f + ' conține „' + (m && m[0]) + '”, iar politica spune că nu urmărim');
+  });
+});
+test('politica: există în română și engleză, e legată din aplicație și păstrată pentru offline', () => {
+  assert.ok(/<html lang="ro">/.test(POLICY) && /id="en" lang="en"/.test(POLICY));
+  assert.ok(/<h1>Politica de confidențialitate<\/h1>/.test(POLICY) && /<h1>Privacy policy<\/h1>/.test(POLICY));
+  assert.ok(/href="confidentialitate\.html"/.test(read('js/app.js')), 'legătura din „Despre și date”');
+  assert.ok(/'confidentialitate\.html'/.test(read('sw.js')), 'pagina e în lista service worker-ului');
+  assert.ok(/https:\/\/github\.com\/GhostWss\/Auto-need\/issues/.test(POLICY), 'are o cale de contact');
+});
+test('politica: toate legăturile din ea sunt https sau locale, cele externe cu rel="noopener" dacă se deschid în fereastră nouă', () => {
+  const links = POLICY.match(/<a [^>]*>/g) || [];
+  assert.ok(links.length >= 10);
+  links.forEach(a => {
+    const href = /href="([^"]+)"/.exec(a)[1];
+    assert.ok(/^(https:\/\/|#|\.\/)/.test(href), 'legătură nesigură: ' + href);
+    if (/target="_blank"/.test(a)) assert.ok(/rel="noopener"/.test(a), 'lipsește noopener: ' + href);
+  });
+});
+
 (async () => {
   for (const [name, fn] of asyncTests) {
     try { await fn(); passed++; }

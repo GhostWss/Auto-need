@@ -1120,7 +1120,9 @@ function openAbout() {
       '<div class="row-btns"><button class="btn primary sm" data-act="add-place">' + ic('plus') + 'Adaugă un loc lipsă</button></div></section>' +
     '<section class="sec"><h3>Instalează</h3>' + inst + '</section>' +
     '<section class="sec"><h3>Pe acest telefon</h3><p>Notele și serviciile completate de tine se păstrează doar aici (' + mineN + ' salvate).</p>' +
-      (mineN ? '<div class="row-btns"><button class="btn ghost sm" data-act="reset-mine">Șterge notele și completările mele</button></div>' : '') + '</section>';
+      (mineN ? '<div class="row-btns"><button class="btn ghost sm" data-act="reset-mine">Șterge notele și completările mele</button></div>' : '') + '</section>' +
+    '<section class="sec"><h3>Confidențialitate</h3><p>Fără conturi, reclame sau urmărire. Notele și poziția ta nu pleacă din telefon.</p>' +
+      '<p><a class="privacy-link" href="confidentialitate.html" target="_blank" rel="noopener">Politica de confidențialitate</a></p></section>';
   aboutEl.hidden = false;
   const cb = aboutCard.querySelector('[data-act="about-close"]');
   if (cb) cb.focus();
