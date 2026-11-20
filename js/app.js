@@ -73,7 +73,7 @@ const TILE_URL = (DEBUG && new URLSearchParams(location.search).get('tiles')) ||
 const MIN_Z = 9, MAX_Z = 19;
 const BOUNDS = { lat0: 44.12, lat1: 44.82, lon0: 25.62, lon1: 26.58 };
 const HOME = { lat0: 44.325, lat1: 44.565, lon0: 25.945, lon1: 26.265 };
-const DATA_V = 1, MAX_AGE = 7 * 864e5;
+const DATA_V = 2, MAX_AGE = 7 * 864e5;   /* 2: locurile salvate au și descriere, e-mail, rețele sociale și servicii deduse */
 /* Fișierul cu locurile (se reface zilnic din OpenStreetMap) e luat de pe același site: rapid și fără serverele Overpass.
    Overpass rămâne pentru când fișierul lipsește sau e mai vechi de MAX_AGE. */
 const SNAP_URL = 'data/places.json', SNAP_AGE = 864e5, RETRY_GAP = 6 * 36e5;
@@ -139,10 +139,12 @@ let NOW = bucharestNow();
 const statusOf = p => p.wk ? HRS.status(p.wk.week, NOW.d, NOW.m) : null;
 
 /* ---------- date per loc ---------- */
-const getSv = p => SV[p.id] || p.sv;
+/* serviciile unui loc: ce ai bifat tu, iar dacă n-ai bifat nimic, ce scrie în OpenStreetMap (etichete) și ce se deduce din nume și descriere */
+const getSv = p => SV[p.id] || p.sv.concat((p.sd || []).filter(c => p.sv.indexOf(c) < 0));
+const isDeduced = (p, c) => !SV[p.id] && p.sv.indexOf(c) < 0;
 function hay(p) {
   if (p._h === undefined) {
-    p._h = norm([p.n, p.b, p.a, p.z, TYPES[p.t].label, TYPES[p.t].words].concat(getSv(p).map(c => SVC[p.t][c] || '')).join(' '));
+    p._h = norm([p.n, p.b, p.a, p.z, p.d, TYPES[p.t].label, TYPES[p.t].words].concat(getSv(p).map(c => SVC[p.t][c] || '')).join(' '));
   }
   return p._h;
 }
@@ -155,13 +157,17 @@ function passes(p, skipType) {
   }
   return true;
 }
-const serializable = p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b });
-/* un loc din fișierul de pe site: ce nu arată bine se ignoră */
+const serializable = p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b, d: p.d, e: p.e, fb: p.fb, ig: p.ig, sd: p.sd });
+/* un loc din fișierul de pe site: ce nu arată bine se ignoră (și ce nu e adresă web, sau serviciu pe care îl știm, nu intră) */
 function cleanPlace(p) {
   if (!p || typeof p.id !== 'string' || !Object.prototype.hasOwnProperty.call(TYPES, p.t)) return null;
   if (typeof p.lat !== 'number' || typeof p.lon !== 'number' || !(Math.abs(p.lat) <= 90) || !(Math.abs(p.lon) <= 180)) return null;
   const s = v => typeof v === 'string' ? v : '';
-  return { id: p.id, t: p.t, n: s(p.n), z: s(p.z), a: s(p.a), lat: p.lat, lon: p.lon, h: s(p.h), tel: Array.isArray(p.tel) ? p.tel : [], w: s(p.w), sv: Array.isArray(p.sv) ? p.sv : [], b: s(p.b) };
+  const url = v => /^https?:\/\//i.test(s(v)) ? v : '';
+  const codes = v => Array.isArray(v) ? v.filter(c => typeof c === 'string' && Object.prototype.hasOwnProperty.call(SVC[p.t], c)) : [];
+  const tel = Array.isArray(p.tel) ? p.tel.filter(t => Array.isArray(t) && typeof t[0] === 'string' && typeof t[1] === 'string') : [];
+  return { id: p.id, t: p.t, n: s(p.n), z: s(p.z), a: s(p.a), lat: p.lat, lon: p.lon, h: s(p.h), tel, w: url(p.w), sv: codes(p.sv), b: s(p.b),
+    d: s(p.d), e: /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(s(p.e)) ? p.e : '', fb: url(p.fb), ig: url(p.ig), sd: codes(p.sd) };
 }
 
 /* distanța în metri (suficient de exactă pe distanțe mici) */
@@ -633,13 +639,67 @@ function locate() {
 }
 locBtn.addEventListener('click', locate);
 
+/* ---------- „Lipsește un loc?” ---------- */
+/* Editorul OpenStreetMap, deschis la locul din mijlocul părții libere a hărții (ce vezi, nu ce e sub bara de sus sau sub fișă).
+   Un loc adăugat acolo apare aici la următoarea actualizare de noapte. */
+function addPlaceUrl() {
+  const i = insets(), S = Sz(view.z);
+  const dx = W ? i.left + (W - i.left - i.right) / 2 - W / 2 : 0, dy = H ? i.top + (H - i.top - i.bottom) / 2 - H / 2 : 0;
+  const mx = view.cx + dx / S, my = view.cy + dy / S;
+  const z = clamp(Math.round(view.z), 17, 19);
+  return 'https://www.openstreetmap.org/edit#map=' + z + '/' + latOf(my).toFixed(5) + '/' + (mx * 360 - 180).toFixed(5);
+}
+function openAddPlace() {
+  window.open(addPlaceUrl(), '_blank', 'noopener');
+  toast('Deschid editorul OpenStreetMap, la locul din mijlocul hărții.', 3600);
+}
+
 /* ---------- fișa locului ---------- */
 function stars(avg) {
   const row = ic('star').repeat(5);
   return '<span class="stars" role="img" aria-label="' + ro1(avg) + ' din 5"><span class="st-bg">' + row + '</span><span class="st-fg" style="width:' + Math.round(avg / 5 * 100) + '%">' + row + '</span></span>';
 }
+const PEEK_SV = 4;   /* câte servicii se văd din prima, pe fișa închisă; restul sunt la „+N” */
+/* un serviciu ca etichetă; cu linie întreruptă dacă l-am dedus din nume sau descriere, nu din etichetele OpenStreetMap */
+function chipHTML(p, c) {
+  const drv = isDeduced(p, c);
+  return '<span class="sv-chip' + (drv ? ' drv' : '') + '"' + (drv ? ' title="Dedus din numele sau descrierea locului"' : '') + '>' + esc(SVC[p.t][c] || c) + '</span>';
+}
+/* ce lipsește din OpenStreetMap la un loc: programul, telefonul, serviciile; cu legătură ca să le completezi */
+function missingHTML(p) {
+  const m = [];
+  if (!p.wk && !p.h) m.push('programul');
+  if (!p.tel.length) m.push('telefonul');
+  if (!getSv(p).length) m.push('serviciile');
+  if (!m.length) return '';
+  const txt = m.length === 1
+    ? m[0].charAt(0).toUpperCase() + m[0].slice(1) + (m[0] === 'serviciile' ? ' lipsesc' : ' lipsește') + ' din OpenStreetMap.'
+    : 'Lipsesc din OpenStreetMap: ' + m.slice(0, -1).join(', ') + ' și ' + m[m.length - 1] + '.';
+  return '<p class="s-miss">' + txt + ' <a href="' + OSM.osmEditUrl(p.id) + '" target="_blank" rel="noopener">Completează</a></p>';
+}
+/* programul pe scurt: „L–V 08:00–18:00 · S 09:00–14:00 · D închis”, cu ziua de azi îngroșată */
+function hoursLine(p) {
+  if (p.wk) {
+    if (HRS.isNonstop(p.wk.week)) return '<span class="sum today">Non-stop, în fiecare zi</span>';
+    return HRS.summary(p.wk.week).map(x => '<span class="sum' + (NOW.d >= x.a && NOW.d <= x.b ? ' today' : '') + '"><span>' + x.label + '</span> ' + x.text + '</span>').join('');
+  }
+  return p.h ? '<span class="sum free">' + esc(p.h) + '</span>' : '';
+}
+/* programul, telefonul și serviciile, direct pe fișa de jos: se văd fără să deschizi detaliile */
+function infoHTML(p) {
+  const rows = [], hrs = hoursLine(p), sv = getSv(p);
+  if (hrs) rows.push('<div class="s-row s-hours" role="group" aria-label="Program">' + ic('clock') + '<div class="v">' + hrs + '</div></div>');
+  if (p.tel.length) rows.push('<div class="s-row s-tel" role="group" aria-label="Telefon">' + ic('phone') + '<div class="v tels">' + p.tel.map(t => '<a href="tel:' + esc(t[1]) + '">' + esc(t[0]) + '</a>').join('') + '</div></div>');
+  if (sv.length) {
+    const rest = sv.length - PEEK_SV;
+    rows.push('<div class="s-row s-sv" role="group" aria-label="Servicii">' + ic('check') + '<div class="v sv sm">' + sv.slice(0, PEEK_SV).map(c => chipHTML(p, c)).join('') +
+      (rest > 0 ? '<button class="sv-more" data-act="expand" aria-label="Arată toate serviciile">+' + rest + '</button>' : '') + '</div></div>');
+  }
+  return '<div class="s-info">' + rows.join('') + missingHTML(p) + '</div>';
+}
 function sheetHTML(p) {
   const T = TYPES[p.t], st = statusOf(p), mine = RT[p.id] || 0, sv = getSv(p), usv = SV[p.id];
+  const fix = OSM.osmEditUrl(p.id);
   const title = p.n || (T.label + ' fără nume');
   const addr = p.a || p.z;
   const ref = me, dist = ref ? fmtDist(distM(ref, p)) : '';
@@ -653,13 +713,19 @@ function sheetHTML(p) {
     }).join('') + '</div>';
   } else if (p.h) {
     hoursHTML = '<p class="raw">' + esc(p.h) + '</p><p class="hint">Programul e scris într-un format pe care aplicația nu îl poate citi încă.</p>';
-  } else hoursHTML = '<p class="empty-sv">Programul nu e completat în OpenStreetMap.</p>';
+  } else hoursHTML = '<p class="empty-sv">Programul nu e completat în OpenStreetMap.</p><a class="link" href="' + fix + '" target="_blank" rel="noopener">Adaugă programul în OpenStreetMap</a>';
 
   let contact = '';
   if (p.tel.length) {
     contact += p.tel.map(t => '<div class="tel"><span class="tel-n">' + esc(t[0]) + '</span><span class="tel-b"><a class="copy call" href="tel:' + esc(t[1]) + '">' + ic('phone') + '<span>Sună</span></a><button class="copy" data-act="copy" data-copy="' + esc(t[0]) + '">' + ic('copy') + '<span>Copiază</span></button></span></div>').join('');
-  } else contact += '<p class="empty-sv">Niciun telefon completat în OpenStreetMap.</p>';
+  } else contact += '<p class="empty-sv">Niciun telefon completat în OpenStreetMap.</p><a class="link" href="' + fix + '" target="_blank" rel="noopener">Adaugă telefonul în OpenStreetMap</a>';
   if (p.w) contact += '<a class="web" href="' + esc(p.w) + '" target="_blank" rel="noopener noreferrer">' + ic('globe') + '<span>' + esc(hostOf(p.w)) + '</span></a>';
+  if (p.e) contact += '<a class="web" href="mailto:' + esc(p.e) + '">' + ic('mail') + '<span>' + esc(p.e) + '</span></a>';
+  if (p.fb || p.ig) {
+    contact += '<div class="navs soc">' +
+      (p.fb ? '<a class="copy" href="' + esc(p.fb) + '" target="_blank" rel="noopener noreferrer">Facebook</a>' : '') +
+      (p.ig ? '<a class="copy" href="' + esc(p.ig) + '" target="_blank" rel="noopener noreferrer">Instagram</a>' : '') + '</div>';
+  }
 
   let svc;
   if (editing) {
@@ -667,11 +733,13 @@ function sheetHTML(p) {
       Object.keys(SVC[p.t]).map(c => '<button class="sv-chip tgl" data-act="sv-toggle" data-sv="' + c + '" aria-pressed="' + (sv.indexOf(c) >= 0) + '">' + ic('check') + esc(SVC[p.t][c]) + '</button>').join('') +
       '</div><div class="row-btns"><button class="btn primary sm" data-act="save-sv">Salvează</button><button class="btn ghost sm" data-act="cancel-sv">Renunță</button></div>';
   } else if (sv.length) {
-    svc = '<div class="sv">' + sv.map(c => '<span class="sv-chip">' + esc(SVC[p.t][c] || c) + '</span>').join('') + '</div>' +
+    svc = '<div class="sv">' + sv.map(c => chipHTML(p, c)).join('') + '</div>' +
+      (sv.some(c => isDeduced(p, c)) ? '<p class="hint">Cele cu linie întreruptă sunt deduse din numele sau descrierea locului.</p>' : '') +
       (usv ? '<p class="hint">Modificat de tine, doar pe acest telefon.</p>' : '') +
       '<button class="link" data-act="edit-sv">Lipsește ceva? Completează</button>';
   } else {
-    svc = '<p class="empty-sv">Serviciile nu sunt completate încă.</p><button class="btn ghost sm" data-act="edit-sv">Completează serviciile</button>';
+    svc = '<p class="empty-sv">Serviciile nu sunt completate încă.</p><button class="btn ghost sm" data-act="edit-sv">Completează serviciile</button>' +
+      '<a class="link" href="' + fix + '" target="_blank" rel="noopener">Sau adaugă-le în OpenStreetMap, pentru toți</a>';
   }
 
   const rateRow = [1, 2, 3, 4, 5].map(n => '<button class="rate-b' + (mine >= n ? ' on' : '') + '" data-act="rate" data-n="' + n + '" aria-label="' + n + ' din 5">' + ic('star', 'lg') + '</button>').join('');
@@ -685,11 +753,13 @@ function sheetHTML(p) {
     (st
       ? '<div class="s-status"><i class="dot' + (st.open ? ' on' : '') + '"></i><b class="' + (st.open ? 'ok' : 'no') + '">' + (st.open ? 'Deschis' : 'Închis') + '</b>' + (st.text ? '<span>· ' + st.text + '</span>' : '') + '</div>'
       : '<div class="s-status"><i class="dot unk"></i><span>Program necunoscut</span></div>') +
+    infoHTML(p) +
     '<div class="s-rate">' + (mine ? '<b>' + mine + ',0</b>' + stars(mine) + '<span>nota ta</span>' : '<span>Nicio evaluare încă</span>') + '</div>' +
     '<div class="s-actions"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&amp;destination=' + ll + '&amp;travelmode=driving" target="_blank" rel="noopener">' + ic('nav') + 'Navighează</a>' +
     (p.tel.length ? '<a class="btn ghost round" href="tel:' + esc(p.tel[0][1]) + '" aria-label="Sună la ' + esc(p.tel[0][0]) + '">' + ic('phone') + '</a>' : '') +
     '<button class="btn ghost" data-act="toggle"><span>Detalii</span>' + ic('chev') + '</button></div>' +
     '<div class="s-body">' +
+      (p.d ? '<section class="sec"><h3>Despre</h3><p class="desc">' + esc(p.d) + '</p></section>' : '') +
       '<section class="sec"><h3>Program</h3>' + hoursHTML + '</section>' +
       '<section class="sec"><h3>Contact</h3>' + contact + '</section>' +
       '<section class="sec"><h3>' + (p.t === 'benz' ? 'Combustibil și servicii' : 'Servicii') + '</h3>' + svc + '</section>' +
@@ -698,7 +768,7 @@ function sheetHTML(p) {
         '<a class="copy" href="https://www.google.com/maps/dir/?api=1&amp;destination=' + ll + '&amp;travelmode=driving" target="_blank" rel="noopener">Google Maps</a>' +
         '<a class="copy" href="https://waze.com/ul?ll=' + ll + '&amp;navigate=yes" target="_blank" rel="noopener">Waze</a>' +
         '<a class="copy" href="https://maps.apple.com/?daddr=' + ll + '&amp;dirflg=d" target="_blank" rel="noopener">Apple Maps</a></div></section>' +
-      '<p class="s-note">Date din <a href="' + OSM.osmUrl(p.id) + '" target="_blank" rel="noopener">OpenStreetMap</a>, © contribuitorii OpenStreetMap. Lipsește ceva sau e greșit? <a href="' + OSM.osmEditUrl(p.id) + '" target="_blank" rel="noopener">Corectează în OpenStreetMap</a> și apare pentru toți.</p>' +
+      '<p class="s-note">Date din <a href="' + OSM.osmUrl(p.id) + '" target="_blank" rel="noopener">OpenStreetMap</a>, © contribuitorii OpenStreetMap. Lipsește ceva sau e greșit? <a href="' + fix + '" target="_blank" rel="noopener">Corectează în OpenStreetMap</a> și apare pentru toți.</p>' +
     '</div>';
 }
 function syncToggle() {
@@ -744,6 +814,7 @@ sheetEl.addEventListener('click', e => {
   if (!p) return;
   if (act === 'close') deselect();
   else if (act === 'toggle') toggleSheet();
+  else if (act === 'expand') setSheetState('full');
   else if (act === 'copy') {
     const label = b.querySelector('span'), txt = b.getAttribute('data-copy');
     const done = t => { label.textContent = t; setTimeout(() => { label.textContent = 'Copiază'; }, 1600); };
@@ -785,9 +856,14 @@ sheetEl.addEventListener('keydown', e => {
 function rowHTML(p) {
   const st = statusOf(p), T = TYPES[p.t], mine = RT[p.id] || 0;
   const sub = T.label + (p.a || p.z ? ' · ' + (p.a || p.z) : '');
+  /* o linie în plus cu telefonul și câteva servicii, ca să le vezi fără să deschizi locul */
+  const sv = getSv(p), bits = [];
+  if (p.tel.length) bits.push(ic('phone') + esc(p.tel[0][0]));
+  if (sv.length) bits.push(esc(sv.slice(0, 3).map(c => SVC[p.t][c] || c).join(', ')) + (sv.length > 3 ? ' +' + (sv.length - 3) : ''));
   return '<button class="l-row" data-id="' + esc(p.id) + '"><span class="l-ic" style="--c:' + tv(p.t) + ';--g:' + tg(p.t) + '">' + ic(p.t) + '</span>' +
     '<span class="l-main"><b>' + esc(p.n || (T.label + ' fără nume')) + '</b><span>' + esc(sub) + '</span>' +
-    (st ? '<span><span class="' + (st.open ? 'ok' : 'no') + '">' + (st.open ? 'Deschis' : 'Închis') + '</span>' + (st.text ? ' · ' + st.text : '') + '</span>' : '<span>Program necunoscut</span>') + '</span>' +
+    (st ? '<span><span class="' + (st.open ? 'ok' : 'no') + '">' + (st.open ? 'Deschis' : 'Închis') + '</span>' + (st.text ? ' · ' + st.text : '') + '</span>' : '<span>Program necunoscut</span>') +
+    (bits.length ? '<span class="l-x">' + bits.join(' · ') + '</span>' : '') + '</span>' +
     '<span class="l-r">' + (mine ? mine + ic('star', 's') + ' ' : '') + fmtDist(p._d) + '</span></button>';
 }
 function renderList() {
@@ -798,10 +874,12 @@ function renderList() {
   listHead.textContent = plural(arr.length, 'loc', 'locuri') + ' · ' + (me ? 'cele mai apropiate de tine' : 'cele mai apropiate de centrul hărții');
   const part = arr.slice(0, listLimit);
   listBody.innerHTML = part.map(rowHTML).join('') +
-    (arr.length > part.length ? '<button class="l-more" data-act="more">Arată încă ' + Math.min(120, arr.length - part.length) + '</button>' : '');
+    (arr.length > part.length ? '<button class="l-more" data-act="more">Arată încă ' + Math.min(120, arr.length - part.length) + '</button>' : '') +
+    (arr.length ? '<div class="l-add"><span>Nu găsești un loc?</span><button class="btn ghost sm" data-act="add-place">' + ic('plus') + 'Adaugă-l în OpenStreetMap</button></div>' : '');
 }
 listBody.addEventListener('click', e => {
   if (e.target.closest('[data-act="more"]')) { listLimit += 120; renderList(); return; }
+  if (e.target.closest('[data-act="add-place"]')) { openAddPlace(); return; }
   const r = e.target.closest('.l-row');
   if (!r) return;
   setMode('map'); select(r.getAttribute('data-id'));
@@ -832,7 +910,7 @@ function showMsg(kind, extra) {
   msgEl.setAttribute('data-kind', kind);
   if (kind === 'loading') msgEl.innerHTML = '<div class="spin" aria-hidden="true"></div><b>Se încarcă locurile</b><span>Iau service-uri, benzinării, vulcanizări și spălătorii din OpenStreetMap. La prima deschidere poate dura câteva secunde.</span>';
   else if (kind === 'error') msgEl.innerHTML = '<b>Nu pot încărca locurile</b><span>' + esc(extra || 'Verifică internetul și încearcă din nou.') + '</span><button class="btn primary sm" data-act="retry">Încearcă din nou</button>';
-  else msgEl.innerHTML = '<b>Niciun loc găsit</b><span>Încearcă alt nume sau scoate un filtru.</span><button class="btn primary sm" data-act="reset">Șterge filtrele</button>';
+  else msgEl.innerHTML = '<b>Niciun loc găsit</b><span>Încearcă alt nume sau scoate un filtru.</span><button class="btn primary sm" data-act="reset">Șterge filtrele</button><button class="link" data-act="add-place">Lipsește un loc? Adaugă-l în OpenStreetMap</button>';
   msgEl.hidden = false;
 }
 function updateMsg() {
@@ -882,9 +960,12 @@ qx.addEventListener('click', () => { qEl.value = ''; qx.hidden = true; state.q =
 msgEl.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
-  if (b.getAttribute('data-act') === 'reset') resetFilters();
-  else if (b.getAttribute('data-act') === 'retry') loadData(true);
+  const act = b.getAttribute('data-act');
+  if (act === 'reset') resetFilters();
+  else if (act === 'retry') loadData(true);
+  else if (act === 'add-place') openAddPlace();
 });
+$('#addBtn').addEventListener('click', openAddPlace);
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!aboutEl.hidden) closeAbout();
@@ -954,7 +1035,11 @@ async function runLoad(force) {
   if (!force) {
     for (const z of ['b', 'i']) {
       const rec = await idb.get('zone-' + z);
-      if (rec && rec.v === DATA_V && Array.isArray(rec.places)) { zoneData[z] = rec.places; zoneTs[z] = rec.ts; }
+      if (!rec || !Array.isArray(rec.places) || !(rec.v >= 1 && rec.v <= DATA_V)) continue;
+      if (rec.v === DATA_V) { zoneData[z] = rec.places; zoneTs[z] = rec.ts; }
+      else {   /* salvat de o versiune mai veche (fără descriere, e-mail, servicii deduse): îl arătăm, dar îl socotim vechi, ca să vină fișierul nou de pe site */
+        zoneData[z] = rec.places.map(cleanPlace).filter(Boolean); zoneTs[z] = 0;
+      }
     }
     if (zoneData.b || zoneData.i) { loadState = 'ready'; ingest(); }
   }
@@ -1030,8 +1115,10 @@ function openAbout() {
       '<div class="kv"><span>Locuri</span><b>' + PLACES.length + '</b></div>' +
       '<div class="kv"><span>Date din OpenStreetMap de la</span><b>' + esc(when) + '</b></div>' +
       '<div class="row-btns"><button class="btn ghost sm" data-act="refresh-data">' + ic('refresh') + 'Actualizează acum</button></div></section>' +
+    '<section class="sec"><h3>Sursa datelor</h3><p>Harta, locurile, programul, telefoanele și serviciile vin din <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, © contribuitorii OpenStreetMap, sub licența ODbL. E o hartă făcută de oameni, ca Wikipedia, așa că unele locuri nu au încă toate informațiile.</p>' +
+      '<p><b>Lipsește un loc sau o informație?</b> Le poți adăuga chiar tu în editorul OpenStreetMap (ai nevoie de un cont gratuit). Se văd apoi în aplicație la următoarea actualizare de noapte, pentru toți șoferii.</p>' +
+      '<div class="row-btns"><button class="btn primary sm" data-act="add-place">' + ic('plus') + 'Adaugă un loc lipsă</button></div></section>' +
     '<section class="sec"><h3>Instalează</h3>' + inst + '</section>' +
-    '<section class="sec"><h3>Sursa datelor</h3><p>Harta și locurile vin din <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, © contribuitorii OpenStreetMap, sub licența ODbL. Datele sunt făcute de oameni și pot fi incomplete. Dacă lipsește un loc sau un program, îl poți adăuga pe <a href="https://www.openstreetmap.org" target="_blank" rel="noopener">openstreetmap.org</a>, iar aplicația îl ia la următoarea actualizare.</p></section>' +
     '<section class="sec"><h3>Pe acest telefon</h3><p>Notele și serviciile completate de tine se păstrează doar aici (' + mineN + ' salvate).</p>' +
       (mineN ? '<div class="row-btns"><button class="btn ghost sm" data-act="reset-mine">Șterge notele și completările mele</button></div>' : '') + '</section>';
   aboutEl.hidden = false;
@@ -1050,6 +1137,9 @@ aboutEl.addEventListener('click', async e => {
     installEvt.prompt();
     try { await installEvt.userChoice; } catch (x) {}
     installEvt = null; closeAbout();
+  } else if (act === 'add-place') {
+    closeAbout();
+    openAddPlace();
   } else if (act === 'refresh-data') {
     closeAbout();
     toast('Descarc locurile din OpenStreetMap…', 6000);

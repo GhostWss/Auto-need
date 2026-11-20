@@ -45,6 +45,32 @@ function knownI() {
   ];
 }
 
+/* locuri cu multe informații și locuri cu puține, pentru fișa de jos, detalii și listă (se adaugă lângă cele de mai sus, în București) */
+function richB() {
+  return [
+    /* completă: program, două telefoane, 7 servicii (una dedusă), descriere, e-mail, Facebook, Instagram, site */
+    { type: 'node', id: 3001, lat: 44.4330, lon: 26.1000, tags: { shop: 'car_repair', name: 'Atelier Complet', opening_hours: 'Mo-Fr 08:00-18:00; Sa 09:00-14:00; Su off', phone: '0722 111 222', mobile: '0733 999 000', website: 'https://complet.example', 'contact:email': 'office@complet.example', 'contact:facebook': 'https://www.facebook.com/AtelierComplet', 'contact:instagram': '@atelier_complet', description: 'Service pentru toate mărcile. Programări la telefon.', 'service:vehicle:oil_change': 'yes', 'service:vehicle:wheel_alignment': 'yes', 'service:vehicle:diagnostics': 'yes', 'service:vehicle:brakes': 'yes', 'service:vehicle:air_conditioning': 'yes', 'payment:cards': 'yes', 'addr:street': 'Strada Test', 'addr:housenumber': '1' } },
+    /* goală: nimic din cele trei */
+    { type: 'node', id: 3002, lat: 44.4340, lon: 26.1010, tags: { shop: 'tyres', name: 'Vulcanizare Goală' } },
+    /* doar program */
+    { type: 'node', id: 3003, lat: 44.4350, lon: 26.1020, tags: { shop: 'car_repair', name: 'Service Doar Program', opening_hours: 'Mo-Su 09:00-17:00' } },
+    /* doar telefon */
+    { type: 'node', id: 3004, lat: 44.4360, lon: 26.1030, tags: { amenity: 'fuel', name: 'Benzinărie Doar Telefon', phone: '0744 555 666' } },
+    /* servicii deduse din nume și descriere, fără etichete de servicii */
+    { type: 'node', id: 3005, lat: 44.4370, lon: 26.1040, tags: { shop: 'car_repair', name: 'Tinichigerie și Vopsitorie Auto', description: 'Schimb de ulei și diagnoză computerizată.' } },
+    /* descriere cu cod HTML: nu are voie să se execute */
+    { type: 'node', id: 3006, lat: 44.4380, lon: 26.1050, tags: { shop: 'car_repair', name: 'Service Descriere', description: '<img src=x onerror=window.__xss2=1> reparații & "citate"', opening_hours: 'Mo-Fr 08:00-12:00,13:00-17:00; Sa off; Su off', phone: '0755 000 111', 'service:vehicle:brakes': 'yes' } },
+    /* program pe care aplicația nu-l poate citi */
+    { type: 'node', id: 3007, lat: 44.4390, lon: 26.1060, tags: { shop: 'car_repair', name: 'Program Ciudat', opening_hours: 'Mo-Fr 08:00-18:00; Sa sunrise-sunset', phone: '0766 222 333', 'service:vehicle:brakes': 'yes' } },
+    /* câte un singur lucru lipsă */
+    { type: 'node', id: 3008, lat: 44.4400, lon: 26.1070, tags: { shop: 'car_repair', name: 'Fără Servicii', opening_hours: 'Mo-Fr 08:00-18:00', phone: '0721 000 222' } },
+    { type: 'node', id: 3009, lat: 44.4410, lon: 26.1080, tags: { shop: 'car_repair', name: 'Fără Telefon', opening_hours: 'Mo-Fr 08:00-18:00', 'service:vehicle:brakes': 'yes' } },
+    { type: 'node', id: 3010, lat: 44.4420, lon: 26.1090, tags: { shop: 'car_repair', name: 'Fără Program', phone: '0722 000 333', 'service:vehicle:brakes': 'yes' } },
+    /* nonstop */
+    { type: 'node', id: 3011, lat: 44.4430, lon: 26.1100, tags: { amenity: 'fuel', name: 'Benzinărie Non-Stop', opening_hours: '24/7', phone: '0723 000 444', 'fuel:diesel': 'yes' } }
+  ];
+}
+
 const NAMES = {
   fuel: ['Petrom', 'OMV', 'MOL', 'Rompetrol', 'Lukoil', 'Socar', 'Gazprom'],
   car_repair: ['Auto Service', 'Mecanic Rapid', 'Atelier Auto', 'Service Prompt', 'AutoFix', 'Garaj Pro'],
@@ -77,4 +103,4 @@ function bulk(zone, n, seed) {
   return out;
 }
 
-module.exports = { knownB, knownI, bulk, rng };
+module.exports = { knownB, knownI, richB, bulk, rng };

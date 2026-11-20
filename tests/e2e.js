@@ -49,6 +49,7 @@ async function session(S, o) {
   o = o || {};
   const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, o.device || PHONE, o.ctx || {}));
   await L.installMocks(ctx, S);
+  if (o.init) await ctx.addInitScript(o.init);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -259,7 +260,7 @@ const okHome = (r, what) => {
     eq(await page.locator('#sheet').getAttribute('data-state'), 'full', '„Detalii” desface fișa');
     const hrs = await page.locator('.hours').textContent();
     ok(/Non-stop/.test(hrs), 'programul: ' + hrs.trim());
-    const sv = await page.locator('.sv-chip').allTextContents();
+    const sv = await page.locator('.s-body .sv-chip').allTextContents();
     eq(sv.sort(), ['Benzină 95', 'GPL', 'Motorină', 'Non-stop', 'Toaletă'].sort(), 'serviciile citite din etichetele OSM');
     eq(await page.locator('a.copy.call').getAttribute('href'), 'tel:+40211234567', 'butonul „Sună” are numărul bun');
     eq(await page.locator('.tel-n').textContent(), '021 123 4567', 'numărul e scris citeț');
@@ -278,6 +279,271 @@ const okHome = (r, what) => {
     ok((await page.locator('.s-name').textContent()).indexOf('<img src=x') >= 0, 'numele apare ca text, cu semnele < și > vizibile');
     eq(errors, [], 'fără erori în consolă');
     await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Fișa locului arată direct programul, telefonul și serviciile', async () => {
+    const S = state0({ elements: { b: F.knownB().concat(F.richB()), i: F.knownI() } });
+    const { ctx, page, errors } = await session(S);
+    const sel = async n => { await page.evaluate(n => { const q = HA.places.find(x => x.n === n); HA.select(q.id, { fly: false }); }, n); await page.waitForTimeout(250); };
+    const flat = s => s.replace(/\s+/g, ' ').trim();
+    await sel('Atelier Complet');
+    eq(await page.locator('#sheet').getAttribute('data-state'), 'peek', 'fișa e pe jumătate (n-ai apăsat „Detalii”)');
+    eq(await page.locator('.s-body').isVisible(), false, 'detaliile sunt închise');
+    ok(await page.locator('.s-hours').isVisible(), 'programul se vede direct');
+    eq((await page.locator('.s-hours .sum').allInnerTexts()).map(flat), ['L–V 08:00–18:00', 'S 09:00–14:00', 'D închis'], 'programul pe zile, pe scurt');
+    eq((await page.locator('.s-hours .sum.today').allInnerTexts()).map(flat), ['L–V 08:00–18:00'], 'ziua de azi (vineri) e îngroșată');
+    ok(await page.locator('.s-tel').isVisible(), 'telefonul se vede direct');
+    eq(await page.locator('.s-tel a').allInnerTexts(), ['0722 111 222', '0733 999 000'], 'ambele numere (și cel de mobil), scrise citeț');
+    eq(await page.locator('.s-tel a').evaluateAll(a => a.map(x => x.getAttribute('href'))), ['tel:+40722111222', 'tel:+40733999000'], 'și se sună cu o atingere');
+    ok(await page.locator('.s-sv').isVisible(), 'serviciile se văd direct');
+    eq(await page.locator('.s-sv .sv-chip').allInnerTexts(), ['Schimb ulei', 'Geometrie roți', 'Diagnoză computerizată', 'Frâne'], 'primele patru servicii');
+    eq(await page.locator('.s-sv .sv-more').innerText(), '+3', 'restul sunt la „+3”');
+    eq(await page.locator('.s-miss').count(), 0, 'nu lipsește nimic, deci nu apare nicio avertizare');
+    eq(await page.locator('.s-sv .sv-chip.drv').count(), 0, 'cele patru vin din etichete OSM, nu sunt deduse');
+    ok(await page.locator('.s-actions .btn.primary').isVisible() && await page.locator('.s-actions .btn[data-act="toggle"]').isVisible(), 'butoanele „Navighează” și „Detalii” se văd tot pe fișa de jos');
+
+    await page.locator('.sv-more').click();
+    eq(await page.locator('#sheet').getAttribute('data-state'), 'full', '„+3” deschide detaliile');
+    eq(await page.locator('.s-info').isVisible(), false, 'în detalii rândurile de sus se ascund (nu apar de două ori)');
+    eq(await page.locator('.s-body .sv-chip').allInnerTexts(), ['Schimb ulei', 'Geometrie roți', 'Diagnoză computerizată', 'Frâne', 'Climatizare', 'Plată cu cardul', 'Reparații generale'], 'în detalii sunt toate cele 7');
+    eq(await page.locator('.s-body .sv-chip.drv').allInnerTexts(), ['Reparații generale'], 'cea dedusă din nume are linie întreruptă');
+    ok(/deduse din numele sau descrierea locului/.test(await page.locator('.s-body .sec:has(h3:text("Servicii")) .hint').first().innerText()), 'și e explicată');
+    eq(await page.locator('.s-body .desc').innerText(), 'Service pentru toate mărcile. Programări la telefon.', 'descrierea din OSM apare în detalii');
+    eq(await page.locator('.tel-n').allInnerTexts(), ['0722 111 222', '0733 999 000'], 'în contact: ambele numere, cu „Sună” și „Copiază”');
+    eq(await page.locator('.web').evaluateAll(a => a.map(x => x.getAttribute('href'))), ['https://complet.example', 'mailto:office@complet.example'], 'site și e-mail');
+    eq(await page.locator('.soc a').evaluateAll(a => a.map(x => [x.textContent, x.getAttribute('href'), x.getAttribute('rel'), x.getAttribute('target')])),
+      [['Facebook', 'https://www.facebook.com/AtelierComplet', 'noopener noreferrer', '_blank'], ['Instagram', 'https://www.instagram.com/atelier_complet', 'noopener noreferrer', '_blank']], 'Facebook și Instagram, cu legături sigure');
+    eq((await page.locator('.hours .hr').allInnerTexts()).map(flat), ['Luni–Vineri 08:00–18:00', 'Sâmbătă 09:00–14:00', 'Duminică Închis'], 'programul pe zile rămâne în detalii');
+
+    /* ce lipsește se spune clar, cu legătură către editorul OpenStreetMap */
+    const miss = async n => { await sel(n); return (await page.locator('.s-miss').allInnerTexts()).map(flat).join('|'); };
+    eq(await miss('Vulcanizare Goală'), 'Lipsesc din OpenStreetMap: programul, telefonul și serviciile. Completează', 'loc gol: spune ce lipsește');
+    eq(await page.locator('.s-info .s-row').count(), 0, 'și nu arată rânduri goale');
+    eq(await page.locator('.s-miss a').getAttribute('href'), 'https://www.openstreetmap.org/edit?node=3002', 'cu legătură către editorul OSM, la locul acela');
+    eq(await page.locator('.s-miss a').getAttribute('target'), '_blank', 'care se deschide în alt tab');
+    eq(await miss('Service Doar Program'), 'Lipsesc din OpenStreetMap: telefonul și serviciile. Completează', 'doar program: lipsesc telefonul și serviciile');
+    eq((await page.locator('.s-hours .sum').allInnerTexts()).map(flat), ['Zilnic 09:00–17:00'], 'program la fel în toate zilele: „Zilnic”');
+    eq(await miss('Benzinărie Doar Telefon'), 'Lipsesc din OpenStreetMap: programul și serviciile. Completează', 'doar telefon: lipsesc programul și serviciile');
+    eq(await page.locator('.s-tel a').allInnerTexts(), ['0744 555 666'], 'iar telefonul se vede');
+    eq(await miss('Fără Servicii'), 'Serviciile lipsesc din OpenStreetMap. Completează', 'un singur lucru lipsă: serviciile (plural)');
+    eq(await miss('Fără Telefon'), 'Telefonul lipsește din OpenStreetMap. Completează', 'telefonul (singular)');
+    eq(await miss('Fără Program'), 'Programul lipsește din OpenStreetMap. Completează', 'programul (singular)');
+    eq(await miss('Atelier Complet'), '', 'și când nu lipsește nimic, nu spune nimic');
+
+    /* în detalii: la ce lipsește, legături către OSM */
+    await sel('Vulcanizare Goală');
+    await page.locator('.btn[data-act="toggle"]').click();
+    const links = await page.locator('.s-body a.link').evaluateAll(a => a.map(x => [x.textContent, x.getAttribute('href')]));
+    eq(links, [['Adaugă programul în OpenStreetMap', 'https://www.openstreetmap.org/edit?node=3002'], ['Adaugă telefonul în OpenStreetMap', 'https://www.openstreetmap.org/edit?node=3002'], ['Sau adaugă-le în OpenStreetMap, pentru toți', 'https://www.openstreetmap.org/edit?node=3002']], 'în detalii: câte o legătură pentru program, telefon și servicii');
+    ok(await page.locator('.s-body [data-act="edit-sv"]').isVisible(), 'și rămâne „Completează serviciile” (doar pe telefon)');
+
+    /* servicii deduse din nume și descriere */
+    await sel('Tinichigerie și Vopsitorie Auto');
+    eq(await page.locator('.s-sv .sv-chip').allInnerTexts(), ['Tinichigerie și vopsitorie', 'Diagnoză computerizată'], 'fără etichete de servicii: se deduc din nume și descriere');
+    eq(await page.locator('.s-sv .sv-chip.drv').count(), 2, 'și au linie întreruptă');
+    eq(await page.locator('.s-miss').first().innerText().then(flat), 'Lipsesc din OpenStreetMap: programul și telefonul. Completează', 'programul și telefonul tot lipsesc');
+
+    /* program pe care aplicația nu-l poate citi, program non-stop */
+    await sel('Program Ciudat');
+    eq(await page.locator('.s-hours .sum.free').innerText(), 'Mo-Fr 08:00-18:00; Sa sunrise-sunset', 'program pe care aplicația nu-l poate citi: se arată cum e în OSM');
+    await sel('Benzinărie Non-Stop');
+    eq(flat(await page.locator('.s-hours').innerText()), 'Non-stop, în fiecare zi', 'program non-stop: „Non-stop, în fiecare zi”');
+    eq(await page.locator('.s-sv .sv-chip').allInnerTexts(), ['Motorină', 'Non-stop'], 'și serviciile benzinăriei');
+
+    /* cod HTML în descriere nu se execută */
+    await sel('Service Descriere');
+    await page.locator('.btn[data-act="toggle"]').click();
+    eq(await page.evaluate(() => window.__xss2), undefined, 'codul HTML din descriere nu se execută');
+    ok((await page.locator('.s-body .desc').innerText()).indexOf('<img src=x') >= 0, 'apare ca text, cu semnele < și >');
+    eq(await page.locator('.s-body .desc img').count(), 0, 'fără element <img> în descriere');
+
+    /* căutarea găsește și după descriere și după serviciile deduse */
+    await page.locator('.s-close').click();
+    await page.fill('#q', 'programari');
+    await page.waitForTimeout(500);
+    eq(sum(await chipCounts(page)), 1, 'căutarea „programari” găsește locul după descriere');
+    await page.fill('#q', 'tinichigerie');
+    await page.waitForTimeout(500);
+    eq(sum(await chipCounts(page)), 1, 'căutarea „tinichigerie” găsește locul cu serviciul dedus');
+    eq(errors, [], 'fără erori în consolă');
+    await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Lista arată telefonul și serviciile fiecărui loc', async () => {
+    const S = state0({ elements: { b: F.knownB().concat(F.richB()), i: F.knownI() } });
+    const { ctx, page, errors } = await session(S);
+    const flat = s => s.replace(/\s+/g, ' ').trim();
+    await page.locator('#mode').click();
+    await page.waitForSelector('.l-row');
+    const row = n => page.locator('.l-row', { hasText: n });
+    eq(flat(await row('Atelier Complet').locator('.l-x').innerText()), '0722 111 222 · Schimb ulei, Geometrie roți, Diagnoză computerizată +4', 'rândul din listă: telefon și primele trei servicii');
+    eq(flat(await row('Benzinărie Doar Telefon').locator('.l-x').innerText()), '0744 555 666', 'doar telefon: doar telefonul');
+    eq(flat(await row('Tinichigerie și Vopsitorie Auto').locator('.l-x').innerText()), 'Tinichigerie și vopsitorie, Diagnoză computerizată', 'doar servicii: doar serviciile');
+    eq(await row('Vulcanizare Goală').locator('.l-x').count(), 0, 'fără telefon și servicii: nicio linie în plus');
+    ok(await row('Atelier Complet').locator('.l-x svg').count() === 1, 'telefonul are iconiță');
+    eq(await page.locator('.l-row button, .l-row a').count(), 0, 'rândurile nu au butoane sau legături în ele (e un buton întreg)');
+    eq(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'fără derulare orizontală');
+    const over = await page.evaluate(() => Array.from(document.querySelectorAll('.l-row .l-x')).filter(x => x.scrollWidth > x.clientWidth + 1 && getComputedStyle(x).textOverflow !== 'ellipsis').length);
+    eq(over, 0, 'linia în plus nu iese din rând (dacă e lungă, se taie cu „…”)');
+    await row('Atelier Complet').click();
+    eq(await page.locator('.s-name').textContent(), 'Atelier Complet', 'atingerea rândului deschide fișa locului');
+    eq(errors, [], 'fără erori în consolă');
+    await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('„Lipsește un loc?”: deschide editorul OpenStreetMap la locul din mijlocul hărții', async () => {
+    const init = () => { window.__open = []; window.open = (...a) => { window.__open.push(a); return null; }; };
+    const URLRE = /^https:\/\/www\.openstreetmap\.org\/edit#map=(\d+)\/(-?\d+\.\d{5})\/(-?\d+\.\d{5})$/;
+    const S = state0();
+    const { ctx, page, errors } = await session(S, { init });
+    const last = () => page.evaluate(() => window.__open[window.__open.length - 1]);
+    const count = () => page.evaluate(() => window.__open.length);
+    const centerOn = async (n, z) => { const p = await placeBy(page, n); await page.evaluate(([x, y, z]) => HA.setView(HA.viewAt(x, y, z), true), [p.mx, p.my, z]); await raf2(page); return p; };
+
+    ok(await page.locator('#addBtn').isVisible(), 'butonul „Lipsește un loc?” se vede pe hartă');
+    ok(/Lipsește un loc\?/.test(await page.locator('#addBtn').innerText()), 'și are textul potrivit');
+    const p = await centerOn('Petrom Unirii', 17.4);
+    await page.locator('#addBtn').click();
+    eq(await count(), 1, 'apăsarea deschide o fereastră nouă');
+    let [url, target, feat] = await last();
+    eq([target, feat], ['_blank', 'noopener'], 'în alt tab, fără legătură cu aplicația');
+    let m = URLRE.exec(url);
+    ok(!!m, 'adresa e editorul OpenStreetMap, cu poziție: ' + url);
+    eq(m && m[1], '17', 'la zoom 17 (cel mai mic în care se poate pune un loc)');
+    near(+m[2], p.lat, 3e-5, 'latitudinea e a locului din mijlocul hărții');
+    near(+m[3], p.lon, 3e-5, 'longitudinea la fel');
+    ok(/Deschid editorul OpenStreetMap/.test(await page.locator('#toast').innerText()), 'apare un mesaj scurt: „Deschid editorul OpenStreetMap…”');
+
+    await centerOn('Petrom Unirii', 12);
+    await page.locator('#addBtn').click();
+    eq(URLRE.exec((await last())[0])[1], '17', 'harta depărtată (z 12): editorul se deschide totuși la zoom 17');
+    await centerOn('Petrom Unirii', 18.6);
+    await page.locator('#addBtn').click();
+    eq(URLRE.exec((await last())[0])[1], '19', 'harta foarte aproape (z 18,6): zoom 19');
+
+    /* din listă */
+    await page.locator('#mode').click();
+    await page.locator('.l-add [data-act="add-place"]').click();
+    eq(await count(), 4, 'din listă: butonul de la sfârșit deschide editorul');
+    ok(/Nu găsești un loc\?/.test(await page.locator('.l-add').innerText()), 'cu textul „Nu găsești un loc?”');
+    await page.locator('#mode').click();
+
+    /* când căutarea nu găsește nimic */
+    await page.fill('#q', 'zzzz');
+    await page.waitForTimeout(500);
+    await page.locator('#msg [data-act="add-place"]').click();
+    eq(await count(), 5, 'din „Niciun loc găsit”: legătura deschide editorul');
+    await page.locator('#msg [data-act="reset"]').click();
+
+    /* din „Despre” */
+    await page.locator('#aboutBtn').click();
+    const about = await page.locator('#aboutCard').textContent();
+    ok(/Lipsește un loc sau o informație\?/.test(about) && /cont gratuit/.test(about) && /actualizare de noapte/.test(about), '„Despre” explică: editor OSM, cont gratuit, actualizare de noapte');
+    ok(!/iar aplicația îl ia la următoarea actualizare/.test(about), 'fără fraza veche');
+    await page.locator('#aboutCard [data-act="add-place"]').click();
+    await page.waitForSelector('#about', { state: 'hidden' });
+    eq(await count(), 6, 'din „Despre”: butonul deschide editorul și închide fereastra');
+
+    /* cu o fișă deschisă pe telefon, butonul de pe hartă se ascunde (fișa e deasupra lui) */
+    await page.evaluate(() => HA.select('n1001', { fly: false }));
+    await page.waitForTimeout(250);
+    eq(await page.locator('#addBtn').isVisible(), false, 'cu fișa deschisă pe telefon, butonul de pe hartă nu mai stă peste ea');
+    eq(errors, [], 'fără erori în consolă');
+    await ctx.close();
+
+    /* pe ecran lat, cu fișa deschisă, editorul se deschide la locul din partea liberă a hărții (nu cea acoperită de fișă) */
+    const S2 = state0();
+    const d = await session(S2, { device: DESKTOP, init });
+    await d.page.evaluate(() => HA.select('n1001', { fly: false }));
+    await d.page.waitForTimeout(300);
+    ok(await d.page.locator('#addBtn').isVisible(), 'pe ecran lat butonul se vede și cu fișa deschisă');
+    const q = await placeBy(d.page, 'Auto Rapid Service');
+    await d.page.evaluate(([x, y]) => HA.setView(HA.viewAt(x, y, 17), true), [q.mx, q.my]);
+    await raf2(d.page);
+    await d.page.locator('#addBtn').click();
+    const m2 = URLRE.exec((await d.page.evaluate(() => window.__open[0]))[0]);
+    ok(!!m2, 'adresa e bună și pe ecran lat');
+    near(+m2[2], q.lat, 3e-5, 'latitudinea e a locului din partea liberă a hărții, nu din mijlocul ferestrei');
+    near(+m2[3], q.lon, 3e-5, 'longitudinea la fel');
+    eq(d.errors, [], 'fără erori în consolă');
+    await d.ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Fișierul cu locurile: câmpuri noi, formatul vechi și valori nepotrivite', async () => {
+    const full = p => { const o = strip(p); ['d', 'e', 'fb', 'ig', 'sd'].forEach(k => { if (p[k] && p[k].length) o[k] = p[k]; }); return o; };
+    const mk = (ts, fn) => ({ v: 1, ts, osm: new Date(ts).toISOString(), zones: { b: OSM.normalize(F.knownB().concat(F.richB()), 'b').map(fn), i: OSM.normalize(F.knownI(), 'i').map(fn) } });
+    const get = (page, n) => page.evaluate(n => { const p = HA.places.find(x => x.n === n); return { d: p.d, e: p.e, fb: p.fb, ig: p.ig, sd: p.sd, sv: p.sv, tel: p.tel, w: p.w }; }, n);
+
+    /* 1) fișier nou: câmpurile ajung în aplicație, fără Overpass */
+    const S = state0({ snapshot: mk(Date.now() - HOUR, full) });
+    const a = await session(S);
+    const r = await get(a.page, 'Atelier Complet');
+    eq([r.d, r.e, r.fb, r.ig, r.sd], ['Service pentru toate mărcile. Programări la telefon.', 'office@complet.example', 'https://www.facebook.com/AtelierComplet', 'https://www.instagram.com/atelier_complet', ['general']], 'descrierea, e-mailul, Facebook, Instagram și serviciile deduse trec din fișier în aplicație');
+    eq(S.overpassLog.length, 0, 'fără Overpass');
+    eq(a.errors, [], 'fără erori în consolă');
+    await a.ctx.close();
+
+    /* 2) fișier în formatul vechi (fără câmpurile noi): locurile se văd, câmpurile noi sunt goale */
+    const S2 = state0({ snapshot: mk(Date.now() - HOUR, strip) });
+    const b = await session(S2);
+    const r2 = await get(b.page, 'Atelier Complet');
+    eq([r2.d, r2.e, r2.fb, r2.ig, r2.sd], ['', '', '', '', []], 'fișier vechi: câmpurile noi sunt goale, nu lipsesc');
+    await b.page.evaluate(() => HA.select(HA.places.find(x => x.n === 'Atelier Complet').id, { fly: false }));
+    await b.page.waitForTimeout(250);
+    eq(await b.page.locator('.s-sv .sv-chip').allInnerTexts(), ['Schimb ulei', 'Geometrie roți', 'Diagnoză computerizată', 'Frâne'], 'fișa se desenează bine și cu fișier vechi');
+    eq(b.errors, [], 'fără erori în consolă');
+    await b.ctx.close();
+
+    /* 3) valori nepotrivite în fișier: se ignoră */
+    const bad = mk(Date.now() - HOUR, full);
+    const t = bad.zones.b.find(x => x.n === 'Atelier Complet');
+    Object.assign(t, { fb: 'javascript:alert(1)', ig: 'ftp://x.example/y', e: '"><img src=x onerror=window.__xss3=1>', w: 'javascript:window.__xss3=2', sd: ['nu_exista', 'general', 7], sv: ['x', 'ulei', null], tel: 'nu e listă', d: 12 });
+    const S3 = state0({ snapshot: bad });
+    const c = await session(S3);
+    const r3 = await get(c.page, 'Atelier Complet');
+    eq([r3.d, r3.e, r3.fb, r3.ig, r3.w], ['', '', '', '', ''], 'adrese care nu sunt web, e-mail stricat și descriere care nu e text: ignorate');
+    eq([r3.sd, r3.sv, r3.tel], [['general'], ['ulei'], []], 'servicii necunoscute și telefon stricat: ignorate');
+    await c.page.evaluate(() => HA.select(HA.places.find(x => x.n === 'Atelier Complet').id, { fly: false }));
+    await c.page.locator('.btn[data-act="toggle"]').click();
+    eq(await c.page.locator('.soc').count(), 0, 'fără legături Facebook/Instagram');
+    eq(await c.page.evaluate(() => window.__xss3), undefined, 'nimic din fișier nu se execută');
+    eq(c.errors, [], 'fără erori în consolă');
+    await c.ctx.close();
+
+    /* 4) locuri salvate în telefon de o versiune mai veche: se arată (și offline), apoi vine fișierul nou */
+    const putIdb = (page, key, val) => page.evaluate(([k, v]) => new Promise((res, rej) => {
+      const q = indexedDB.open('harta-auto', 1);
+      q.onsuccess = () => { const tx = q.result.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => { q.result.close(); res(); }; tx.onerror = () => rej(tx.error); };
+      q.onerror = () => rej(q.error);
+    }), [key, val]);
+    const S4 = state0({ snapshot: mk(Date.now() - 2 * HOUR, strip) });
+    const e = await session(S4);
+    await e.page.waitForTimeout(600);
+    const oldList = zone => e.page.evaluate(z => HA.places.filter(p => (p.z === (z === 'b' ? 'București' : 'Ilfov'))).map(p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b })), zone);
+    await putIdb(e.page, 'zone-b', { v: 1, ts: Date.now() - 1000, places: await oldList('b') });
+    await putIdb(e.page, 'zone-i', { v: 1, ts: Date.now() - 1000, places: await oldList('i') });
+    const total = await e.page.evaluate(() => HA.places.length);
+    /* fără fișier și fără Overpass: rămân locurile vechi din telefon */
+    S4.snapshot = 404; S4.overpass = async () => ({ status: 503, json: {} });
+    await e.page.reload();
+    await e.page.waitForFunction(() => window.HA && window.HA.places.length > 0, null, { timeout: 15000 });
+    eq(await e.page.evaluate(() => HA.places.length), total, 'locurile salvate de versiunea veche se văd (nu se pierd dacă fișierul nu vine)');
+    eq((await get(e.page, 'Atelier Complet')).d, '', 'fără câmpurile noi, dar întregi');
+    ok(await e.page.locator('#msg').isHidden(), 'fără mesaj de eroare');
+    /* cu fișierul nou, se înlocuiesc cu cele noi */
+    S4.snapshot = mk(Date.now(), full); S4.overpass = null;
+    await e.page.waitForTimeout(1500);
+    const before = S4.overpassLog.length;
+    await e.page.reload();
+    await e.page.waitForFunction(() => { const p = window.HA && HA.places.find(x => x.n === 'Atelier Complet'); return p && p.d; }, null, { timeout: 15000 });
+    ok(true, 'cu fișierul nou, locurile salvate se înlocuiesc și capătă câmpurile noi');
+    eq(S4.overpassLog.length, before, 'fără Overpass');
+    eq(e.errors.filter(x => !/status of (404|503)/.test(x)), [], 'fără erori în consolă (în afară de 404 și 503, simulate)');
+    await e.ctx.close();
   });
 
   /* ---------------------------------------------------------------- */
@@ -350,7 +616,7 @@ const okHome = (r, what) => {
     await page.locator('[data-sv="parbriz"]').click();
     await page.locator('[data-sv="ulei"]').click();       // scoate „Schimb ulei”
     await page.locator('[data-act="save-sv"]').click();
-    const sv = (await page.locator('.sv-chip').allTextContents()).sort();
+    const sv = (await page.locator('.s-body .sv-chip').allTextContents()).sort();
     eq(sv, ['Climatizare', 'Diagnoză computerizată', 'Frâne', 'Parbrize'].sort(), 'serviciile rămân cum le-ai bifat');
     ok(/Modificat de tine/.test(await page.locator('#sheet').innerText()), 'apare „Modificat de tine, doar pe acest telefon”');
     await page.fill('#q', 'climatizare');
@@ -361,7 +627,7 @@ const okHome = (r, what) => {
     await page.evaluate(() => { const q = HA.places.find(x => x.n === 'Auto Rapid Service'); HA.select(q.id, { fly: false }); });
     ok(/4,0/.test(await page.locator('.s-rate').innerText()), 'după reîncărcare nota e tot acolo');
     await page.locator('[data-act="toggle"]').click();
-    ok((await page.locator('.sv-chip').allTextContents()).indexOf('Climatizare') >= 0, 'și serviciile tot acolo');
+    ok((await page.locator('.s-body .sv-chip').allTextContents()).indexOf('Climatizare') >= 0, 'și serviciile tot acolo');
     await page.locator('[data-act="unrate"]').click();
     ok(/Nicio evaluare încă/.test(await page.locator('.s-rate').innerText()), '„Șterge nota” o scoate');
     eq(errors, [], 'fără erori în consolă');
@@ -877,7 +1143,7 @@ const okHome = (r, what) => {
 
   /* ---------------------------------------------------------------- */
   await T('Aspect: telefon, întuneric, ecran mare (capturi)', async () => {
-    const S = state0({ tileStyle: 'pretty' });
+    const S = state0({ tileStyle: 'pretty', elements: { b: F.knownB().concat(F.richB()), i: F.knownI() } });
     const shots = [];
     for (const [name, dev, scheme] of [['telefon-zi', PHONE, 'light'], ['telefon-noapte', PHONE, 'dark'], ['desktop', DESKTOP, 'light']]) {
       const { ctx, page, errors } = await session(S, { device: dev, ctx: { colorScheme: scheme } });
@@ -886,6 +1152,18 @@ const okHome = (r, what) => {
       await page.evaluate(() => HA.select('n1001'));
       await page.waitForTimeout(1100);
       await page.screenshot({ path: path.join(SHOTS, name + '-2-fisa.png') });
+      for (const [id, tag] of [['n3001', '2b-fisa-completa'], ['n3002', '2c-fisa-goala'], ['n3005', '2d-fisa-deduse'], ['n3007', '2e-fisa-program-brut']]) {
+        await page.evaluate(id => HA.select(id), id);
+        await page.waitForTimeout(1100);
+        await page.screenshot({ path: path.join(SHOTS, name + '-' + tag + '.png') });
+      }
+      await page.evaluate(() => HA.select('n3001'));
+      await page.waitForTimeout(900);
+      await page.locator('.btn[data-act="toggle"]').click();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: path.join(SHOTS, name + '-3b-detalii-completa.png') });
+      await page.evaluate(() => HA.select('n1001'));
+      await page.waitForTimeout(700);
       await page.locator('[data-act="toggle"]').click();
       await page.waitForTimeout(300);
       await page.screenshot({ path: path.join(SHOTS, name + '-3-detalii.png') });

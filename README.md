@@ -1,6 +1,6 @@
 # Harta Auto București–Ilfov
 
-Aplicație pentru șoferi: pe o hartă OpenStreetMap apar service-urile, benzinăriile, vulcanizările, spălătoriile și magazinele de piese auto din București și Ilfov. Fiecare loc are program (și dacă e deschis acum), telefon, ce servicii oferă și un buton de navigare. Șoferii pot completa serviciile care lipsesc și pot da note.
+Aplicație pentru șoferi: pe o hartă OpenStreetMap apar service-urile, benzinăriile, vulcanizările, spălătoriile și magazinele de piese auto din București și Ilfov. Fiecare loc arată direct, fără să deschizi nimic, programul (și dacă e deschis acum), telefonul și serviciile, luate automat din OpenStreetMap, plus un buton de navigare. Șoferii pot completa serviciile care lipsesc și pot da note, iar locurile sau informațiile care lipsesc se adaugă în OpenStreetMap, dintr-un buton din aplicație.
 
 Se instalează pe telefon ca o aplicație obișnuită (iPhone și Android), fără magazin de aplicații, și merge și fără internet pentru ce ai văzut deja.
 
@@ -10,7 +10,9 @@ Se instalează pe telefon ca o aplicație obișnuită (iPhone și Android), făr
 - Locurile vin din OpenStreetMap: benzinării, service-uri, vulcanizări, spălătorii, magazine de piese. Se iau dintr-un fișier de pe site (`data/places.json`, refăcut în fiecare noapte), se păstrează în telefon și se reîmprospătează zilnic. Dacă fișierul lipsește sau e foarte vechi, aplicația întreabă direct serverele Overpass.
 - Căutare după nume, adresă sau serviciu („ulei”, „motorină”, „geometrie”), filtre pe categorii și „Deschise acum” (ora României).
 - Lista locurilor, cele mai apropiate primele (de tine, dacă dai acces la locație).
-- Fișa fiecărui loc: program pe zile, telefoane (Sună / Copiază), site, servicii, navigare în Google Maps, Waze sau Apple Maps, legătură spre locul din OpenStreetMap.
+- Fișa fiecărui loc arată direct, pe prima vedere: programul pe zile („L–V 08:00–18:00 · S 09:00–14:00 · D închis”, cu ziua de azi îngroșată), telefoanele (se sună cu o atingere) și primele servicii, restul la „+N”. Ce lipsește din OpenStreetMap se spune clar („Lipsesc din OpenStreetMap: programul și telefonul”), cu legătură către editor. În detalii: programul pe zile, telefoane (Sună / Copiază), site, e-mail, Facebook, Instagram, descrierea locului, toate serviciile, navigare în Google Maps, Waze sau Apple Maps, legătură spre locul din OpenStreetMap.
+- Datele luate din OpenStreetMap: `opening_hours`, telefon (`phone`, `contact:phone`, `mobile`, `contact:mobile`, `phone:mobile`), servicii din etichete (`service:vehicle:*`, `service=`, combustibili, plată cu cardul, Wi-Fi) și, separat, servicii **deduse** din nume și descriere (afișate cu linie întreruptă). Locurile fără aceste date rămân cu ce are OSM: se completează în OpenStreetMap și apar aici la următoarea actualizare de noapte.
+- „Lipsește un loc?”: butonul de pe hartă (și cel de la sfârșitul listei, din „Niciun loc găsit” și din „Despre”) deschide editorul OpenStreetMap exact la locul din mijlocul hărții. Trebuie un cont OpenStreetMap, gratuit.
 - Servicii completate de șofer și note de la 1 la 5, **păstrate deocamdată doar pe telefonul lui**.
 - Temă întunecată automată, ecran lat (calculator, tabletă) cu panou lateral.
 - Scurtături la lung-apăsarea iconiței pe Android: `?t=benz`, `?t=vulc`, `?t=service`, `?t=spal` (și `&open=1` pentru „deschise acum”).
@@ -34,7 +36,7 @@ Fișierul `data/places.json` e deja în proiect. Ca să-l refaci acum din OpenSt
 3. După un minut, adresa e `https://NUMELE-TAU.github.io/NUMELE-DEPOZITULUI/`. Deschide-o pe telefon.
 4. Pe Android: meniul browserului → **Instalează aplicația**. Pe iPhone, în Safari: **Distribuie → Adaugă pe ecranul principal**.
 
-Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v3`), ca telefoanele să ia varianta nouă.
+Când schimbi fișiere, mărește `VERSION` din `sw.js` (de exemplu `v4`), ca telefoanele să ia varianta nouă.
 
 ### Locurile se refac singure în fiecare noapte
 
@@ -48,7 +50,7 @@ De ce așa: serverele publice Overpass sunt deseori aglomerate (seara mai ales) 
 | --- | --- |
 | `index.html`, `styles.css` | Pagina și aspectul |
 | `js/app.js` | Harta (plăci OpenStreetMap pe canvas, fără bibliotecă externă), pini și grupuri, gesturi, listă, fișe, evaluări |
-| `js/osm.js` | Interogarea Overpass (mai multe servere, cererile pornesc eșalonat și câștigă primul răspuns bun) și transformarea etichetelor OSM în categorie, servicii, telefon, adresă |
+| `js/osm.js` | Interogarea Overpass (mai multe servere, cererile pornesc eșalonat și câștigă primul răspuns bun) și transformarea etichetelor OSM în categorie, servicii (din etichete și deduse din text), telefon, e-mail, Facebook, Instagram, descriere, adresă |
 | `data/places.json` | Locurile din OpenStreetMap, refăcute zilnic (vezi `data/README.md` pentru licență) |
 | `tools/fetch-places.js`, `.github/workflows/` | Descărcarea de noapte a locurilor |
 | `js/hours.js` | Citește `opening_hours` din OSM și spune dacă e deschis acum |

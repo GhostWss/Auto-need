@@ -5,7 +5,7 @@
    - fișierul cu locurile (data/places.json) se ia ca restul fișierelor aplicației: întâi de pe net, apoi ce e salvat;
    - interogările Overpass nu trec pe aici: aplicația își păstrează singură locurile.
    Când schimbi fișiere ale aplicației, mărește VERSION ca telefoanele să ia varianta nouă. */
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = 'ha-shell-' + VERSION;
 const TILES = 'ha-tiles';
 const FONTS = 'ha-fonts';

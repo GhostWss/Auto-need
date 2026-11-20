@@ -45,6 +45,8 @@
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4M19.5 4.5v4.2h-4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5L11 13M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-install" viewBox="0 0 24 24"><path d="M12 4v10M7.5 10.5L12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 7.2V12l3.2 2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.8" y="5.8" width="16.4" height="12.4" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4.8 7.6l7.2 5.5 7.2-5.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
 <div id="app" data-view="map" data-sheet="">
@@ -83,6 +85,7 @@
     <button id="loc" aria-label="Arată unde sunt"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg></button>
   </div>
   <div class="foot">
+    <button class="pill" id="addBtn"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>Lipsește un loc?</span></button>
     <button class="pill" id="aboutBtn"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span id="aboutTxt">Despre și date</span></button>
     <span class="pill warn" id="net" hidden>Fără conexiune · harta poate fi incompletă</span>
     <div class="scale"><span id="scaleBar"></span><em id="scaleTxt"></em><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a></div>

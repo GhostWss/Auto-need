@@ -86,6 +86,16 @@ test('grupare pentru afișare', () => {
   same(H.groups(H.parse('24/7').week), [{ a: 0, b: 6, text: 'Non-stop' }]);
 });
 
+test('program pe scurt', () => {
+  same(H.summary(H.parse('Mo-Fr 08:00-18:00; Sa 09:00-14:00; Su off').week), [
+    { a: 0, b: 4, label: 'L–V', text: '08:00–18:00' }, { a: 5, b: 5, label: 'S', text: '09:00–14:00' }, { a: 6, b: 6, label: 'D', text: 'închis' }]);
+  same(H.summary(H.parse('Mo-Su 08:00-20:00').week), [{ a: 0, b: 6, label: 'Zilnic', text: '08:00–20:00' }]);
+  same(H.summary(H.parse('24/7').week), [{ a: 0, b: 6, label: 'Zilnic', text: 'Non-stop' }]);
+  same(H.summary(H.parse('Mo-Fr 08:00-12:00,13:00-17:00').week).map(x => x.label + ' ' + x.text), ['L–V 08:00–12:00, 13:00–17:00', 'S–D închis']);
+  same(H.summary(H.parse('Mo-We 09:00-17:00; Th 09:00-19:00; Fr 09:00-17:00').week).map(x => x.label), ['L–Mi', 'J', 'V', 'S–D']);
+  same(H.summary(H.parse('Tu 10:00-12:00; We 10:00-12:00').week).map(x => x.label + ' ' + x.text), ['L închis', 'Ma–Mi 10:00–12:00', 'J–D închis']);
+});
+
 /* ---------- OpenStreetMap ---------- */
 test('telefoane românești', () => {
   same(O.fmtPhone('+40 721 234 567'), ['0721 234 567', '+40721234567']);
@@ -151,6 +161,85 @@ test('deduplicare punct + clădire', () => {
 test('adrese de legătură OSM', () => {
   assert.strictEqual(O.osmUrl('n123'), 'https://www.openstreetmap.org/node/123');
   assert.strictEqual(O.osmEditUrl('w9'), 'https://www.openstreetmap.org/edit?way=9');
+});
+
+/* ---------- date în plus: servicii din etichete, deduse din text, descriere, contact ---------- */
+const one = tags => O.normalize([{ type: 'node', id: 77, lat: 44.43, lon: 26.1, tags }], 'b')[0];
+test('servicii din etichete: variante de scriere, plată, Wi-Fi, service=', () => {
+  same(one({ shop: 'car_repair', name: 'X', 'service:vehicle:alignment': 'yes', 'service:vehicle:batteries': 'yes', 'service:vehicle:repairs': 'yes' }).sv, ['geo', 'elec', 'general']);
+  same(one({ shop: 'car_repair', name: 'X', 'service:vehicle:wheel_alignment': 'yes', 'service:vehicle:battery': 'yes', 'service:vehicle:car_repair': 'yes' }).sv, ['geo', 'elec', 'general']);
+  same(one({ shop: 'car_repair', name: 'X', 'service:vehicle:brakes': 'no' }).sv, []);
+  same(one({ shop: 'car_repair', name: 'X', service: 'repair;parts;tyres' }).sv, ['general', 'piese', 'anv']);
+  same(one({ shop: 'car_repair', name: 'X', services: 'glass, towing, ceva_necunoscut' }).sv, ['parbriz', 'tract']);
+  same(one({ shop: 'tyres', name: 'X', 'service:vehicle:tyres': 'yes', 'service:vehicle:wheel_balancing': 'yes', 'service:vehicle:alignment': 'yes' }).sv, ['schimb', 'echil', 'geo']);
+  same(one({ amenity: 'fuel', name: 'X', 'payment:visa': 'yes', 'payment:cash': 'yes', internet_access: 'wlan' }).sv, ['card', 'cash', 'wifi']);
+  same(one({ amenity: 'fuel', name: 'X', 'payment:cards': 'no', 'payment:cash': 'no', internet_access: 'no' }).sv, []);
+  same(one({ amenity: 'car_wash', name: 'X', 'payment:debit_cards': 'yes', opening_hours: '24/7' }).sv, ['card', 'nonstop']);
+});
+test('telefon: și în mobile, contact:mobile, phone:mobile, contact', () => {
+  same(one({ shop: 'car_repair', name: 'X', mobile: '0722 333 444' }).tel, [['0722 333 444', '+40722333444']]);
+  same(one({ shop: 'car_repair', name: 'X', 'contact:mobile': '+40 733 111 222', phone: '021 345 6789' }).tel, [['021 345 6789', '+40213456789'], ['0733 111 222', '+40733111222']]);
+  same(one({ shop: 'car_repair', name: 'X', 'phone:mobile': '0744555666', 'contact:phone': '0744 555 666' }).tel, [['0744 555 666', '+40744555666']]);
+  same(one({ shop: 'car_repair', name: 'X', contact: '0755 000 111' }).tel, [['0755 000 111', '+40755000111']]);
+  same(one({ shop: 'car_repair', name: 'X', contact: 'prin e-mail' }).tel, []);
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', phone: '0711 000 001; 0711 000 002; 0711 000 003; 0711 000 004' }).tel.length, 3, 'cel mult trei numere');
+});
+test('servicii deduse din nume și descriere (separat de etichete)', () => {
+  const p = one({ shop: 'car_repair', name: 'Tinichigerie și Vopsitorie Auto', description: 'ITP, climatizare și geometrie. Diagnoză computerizată.' });
+  same(p.sv, []);
+  same(p.sd, ['tinich', 'itp', 'clima', 'geo', 'diag']);
+  const q = one({ shop: 'car_repair', name: 'Service Frâne', 'service:vehicle:brakes': 'yes', description: 'frâne și suspensie' });
+  same(q.sv, ['frane']); same(q.sd, ['susp'], 'ce e deja în etichete nu se mai deduce');
+  same(one({ shop: 'tyres', name: 'Vulcanizare Echilibrare și Jante' }).sd, ['echil', 'jante']);
+  same(one({ amenity: 'car_wash', name: 'Spălătorie Self Service' }).sd, ['self']);
+  same(one({ shop: 'car_parts', name: 'Piese Second Hand', description: 'livrare rapidă cu curier' }).sd, ['sh', 'livrare']);
+  same(one({ amenity: 'fuel', name: 'Petrom cafea și mâncare', description: 'toaletă gratuită' }).sd, [], 'benzinăriile nu deduc nimic din nume');
+  same(one({ shop: 'car_repair', name: 'Auto Mecanic', brand: 'Auto Mecanic' }).sd, [], 'numele care e doar marca nu se ia în seamă');
+  same(one({ shop: 'car_repair', name: 'Service Roți Rapid' }).sd, ['anv']);
+  assert.strictEqual(one({ shop: 'car_repair', name: 'Service Anvelopă Rapid' }).t, 'vulc', 'cu „anvelopă” în nume e vulcanizare');
+  same(one({ shop: 'car_repair', name: 'Service Electrician Auto' }).sd, ['elec']);
+  same(one({ shop: 'car_repair', name: 'Service Parbriz Express' }).sd, ['parbriz']);
+});
+test('descrierea: curățată, fără MAJUSCULE întregi, nu prea lungă', () => {
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', description: '  Service   pentru toate mărcile.  ' }).d, 'Service pentru toate mărcile.');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', 'description:ro': 'Descriere în română', description: 'English one' }).d, 'Descriere în română');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', description: 'SERVICE AUTO SPECIALIZAT. PROGRAM LA TELEFON' }).d, 'Service auto specializat. Program la telefon');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', description: 'ok' }).d, '', 'prea scurtă');
+  assert.strictEqual(one({ amenity: 'car_wash', name: 'X', description: 'Hotspot WiFi gratuit' }).d, '', 'hotspot nu e descriere');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'Service Rapid', description: 'Service Rapid' }).d, '', 'la fel cu numele: nu se repetă');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', description: '- Reparații auto' }).d, 'Reparații auto');
+  const long = one({ shop: 'car_repair', name: 'X', description: ('cuvânt ').repeat(120) }).d;
+  assert.ok(long.length <= 501 && /…$/.test(long), 'tăiată la 500 de semne, cu „…”');
+});
+test('e-mail, Facebook, Instagram', () => {
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', 'contact:email': 'office@rapid.ro' }).e, 'office@rapid.ro');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', email: 'a@b.ro; c@d.ro' }).e, 'a@b.ro');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', email: 'nu e adresă' }).e, '');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', email: 'javascript:alert(1)@x.ro' }).e, '');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', email: 'a@b.ro?bcc=x@y.ro' }).e, '');
+  const fb = v => one({ shop: 'car_repair', name: 'X', facebook: v }).fb;
+  assert.strictEqual(fb('https://www.facebook.com/AtelierRapid'), 'https://www.facebook.com/AtelierRapid');
+  assert.strictEqual(fb('facebook.com/atelier.rapid'), 'https://www.facebook.com/atelier.rapid');
+  assert.strictEqual(fb('https://m.facebook.com/atelier.rapid/'), 'https://www.facebook.com/atelier.rapid/');
+  assert.strictEqual(fb('fb.com/atelier'), 'https://www.facebook.com/atelier');
+  assert.strictEqual(fb('@atelier.rapid'), 'https://www.facebook.com/atelier.rapid');
+  assert.strictEqual(fb('atelierrapid'), 'https://www.facebook.com/atelierrapid');
+  assert.strictEqual(fb('https://facebook.com/'), '', 'fără pagină');
+  assert.strictEqual(fb('https://example.com/atelier'), '', 'alt site nu e Facebook');
+  assert.strictEqual(fb('javascript:alert(1)'), '');
+  assert.strictEqual(fb('Atelier Rapid Auto'), '', 'cu spații: nu e o pagină');
+  assert.strictEqual(fb('două cuvinte'), '');
+  assert.strictEqual(fb('https://www.facebook.com/prima; https://www.facebook.com/a-doua'), 'https://www.facebook.com/prima', 'dintr-o listă se ia prima');
+  const ig = v => one({ shop: 'car_repair', name: 'X', 'contact:instagram': v }).ig;
+  assert.strictEqual(ig('https://instagram.com/rapid_auto/'), 'https://www.instagram.com/rapid_auto/');
+  assert.strictEqual(ig('@rapid_auto'), 'https://www.instagram.com/rapid_auto');
+  assert.strictEqual(ig('https://facebook.com/rapid'), '', 'Facebook în câmpul Instagram: nu');
+  assert.strictEqual(one({ shop: 'car_repair', name: 'X', 'contact:facebook': 'https://www.facebook.com/Contact', facebook: 'https://www.facebook.com/Altul' }).fb, 'https://www.facebook.com/Contact', 'contact:* are întâietate');
+});
+test('toate câmpurile noi există mereu (goale când lipsesc)', () => {
+  const p = one({ shop: 'car_repair', name: 'X' });
+  assert.strictEqual(p.d, ''); assert.strictEqual(p.e, ''); assert.strictEqual(p.fb, ''); assert.strictEqual(p.ig, ''); same(p.sd, []);
+  same(O.SVC.service.card, 'Plată cu cardul'); assert.ok(['benz', 'service', 'vulc', 'spal', 'piese'].every(t => O.SVC[t].card && O.SVC[t].cash && O.SVC[t].wifi), 'plata și Wi-Fi la toate categoriile');
 });
 
 /* ---------- încărcarea de la mai multe servere Overpass ---------- */

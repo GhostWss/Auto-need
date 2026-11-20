@@ -16,7 +16,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 OSM.CONFIG.headers = { 'User-Agent': 'harta-auto/1.0 (+https://github.com/GhostWss/Auto-need)' };
 const trace = [];
 OSM.CONFIG.log = (ep, what) => { const line = new URL(ep).host + ': ' + what; trace.push(line); console.log('  ' + line); };
-const strip = p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b });
+/* în fișier intră câmpurile de bază ale fiecărui loc, plus cele rare (descriere, e-mail, Facebook, Instagram, servicii deduse) doar când locul le are */
+const RARE = ['d', 'e', 'fb', 'ig', 'sd'];
+const strip = p => {
+  const o = { id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b };
+  RARE.forEach(k => { if (p[k] && p[k].length) o[k] = p[k]; });
+  return o;
+};
 const byId = (a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
 async function loadZone(z) {

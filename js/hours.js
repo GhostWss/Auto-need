@@ -216,6 +216,18 @@
     return out;
   }
 
+  /* Programul pe scurt, pentru fișa de sus: [{a, b, label, text}], de ex. „L–V 08:00–18:00”, „S 09:00–14:00”, „D închis”.
+     Dacă e la fel în toate zilele, o singură bucată: „Zilnic 08:00–20:00”. */
+  var SHORT = ['L', 'Ma', 'Mi', 'J', 'V', 'S', 'D'];
+  function summary(week) {
+    var g = groups(week);
+    var low = function (t) { return t === 'Închis' ? 'închis' : t; };
+    if (g.length === 1) return [{ a: 0, b: 6, label: 'Zilnic', text: low(g[0].text) }];
+    return g.map(function (x) {
+      return { a: x.a, b: x.b, label: x.a === x.b ? SHORT[x.a] : SHORT[x.a] + '–' + SHORT[x.b], text: low(x.text) };
+    });
+  }
+
   function isNonstop(week) {
     for (var d = 0; d < 7; d++) {
       if (week[d].length !== 1 || week[d][0][0] !== 0 || week[d][0][1] !== 1440) return false;
@@ -223,5 +235,5 @@
     return true;
   }
 
-  return { parse: parse, status: status, groups: groups, fmt: fmt, isNonstop: isNonstop, DAYS: DAYS, DAYS_L: DAYS_L };
+  return { parse: parse, status: status, groups: groups, summary: summary, fmt: fmt, isNonstop: isNonstop, DAYS: DAYS, DAYS_L: DAYS_L };
 });

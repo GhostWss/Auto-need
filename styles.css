@@ -132,9 +132,11 @@ button.pill .ic{width:15px;height:15px;color:var(--accent)}
 .l-main span{color:var(--fg-2);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .l-main .ok{color:var(--good);font-weight:600}
 .l-main .no{color:var(--bad);font-weight:600}
+.l-main .l-x .ic{display:inline-block;width:13px;height:13px;margin-right:5px;vertical-align:-1px;color:var(--fg-3)}
 .l-r{display:flex;align-items:center;gap:4px;font:700 15px/1 var(--font-d);color:var(--fg-2);white-space:nowrap}
 .l-r .ic{color:var(--star)}
-.l-more{display:block;width:calc(100% - var(--gl) - var(--gr));margin:14px var(--gr) calc(24px + var(--sab)) var(--gl);height:46px;border-radius:23px;background:var(--surface-2);font:600 15px/1 var(--font)}
+.l-more{display:block;width:calc(100% - var(--gl) - var(--gr));margin:14px var(--gr) 14px var(--gl);height:46px;border-radius:23px;background:var(--surface-2);font:600 15px/1 var(--font)}
+.l-add{display:grid;justify-items:center;gap:10px;padding:18px var(--gr) calc(28px + var(--sab)) var(--gl);border-top:1px solid var(--line);color:var(--fg-2);font-size:15px;text-align:center}
 
 /* ---- mesaje (încărcare, eroare, nimic găsit) ---- */
 .empty{position:absolute;left:50%;top:50%;z-index:40;transform:translate(-50%,-50%);width:min(340px,calc(100% - 48px));display:grid;gap:8px;justify-items:center;text-align:center;padding:22px 20px;border-radius:20px;background:var(--surface);box-shadow:var(--shadow)}
@@ -179,6 +181,27 @@ button.pill .ic{width:15px;height:15px;color:var(--accent)}
 .btn.round .ic{width:20px;height:20px}
 .sheet[data-state="peek"] .s-body{display:none}
 .sheet[data-state="full"] [data-act="toggle"] .ic{transform:rotate(180deg)}
+/* program, telefon, servicii: se văd direct pe fișa închisă; pe cea deschisă sunt mai jos, în detalii */
+.sheet[data-state="full"] .s-info{display:none}
+.s-info{display:grid;gap:7px;margin-top:12px}
+.s-row{display:flex;align-items:flex-start;gap:10px;font-size:15px;line-height:1.35;color:var(--fg-2)}
+.s-row>.ic{width:17px;height:17px;margin-top:2px;color:var(--fg-3)}
+.s-row .v{flex:1;min-width:0}
+.sum{white-space:nowrap}
+.sum>span{color:var(--fg-3)}
+.sum::after{content:"·";margin:0 .5em;color:var(--fg-3);font-weight:400}
+.sum:last-child::after{content:none}
+.sum.today{color:var(--fg);font-weight:600}
+.sum.today>span{color:inherit}
+.sum.free{white-space:normal;overflow-wrap:anywhere}
+.tels{display:flex;flex-wrap:wrap;gap:2px 16px}
+.tels a{color:var(--accent);font-weight:600;text-decoration:none;font-variant-numeric:tabular-nums}
+.s-row .sv{gap:6px}
+.sv.sm .sv-chip{height:28px;padding:0 10px;font-size:13.5px;border-radius:14px}
+.sv-more{height:28px;min-width:34px;padding:0 9px;border-radius:14px;background:var(--accent-soft);color:var(--accent);font:600 13.5px/1 var(--font)}
+.s-miss{font-size:14px;line-height:1.4;color:var(--fg-3)}
+.s-miss a{color:var(--accent);font-weight:600;white-space:nowrap}
+.desc{font-size:15px;line-height:1.5;color:var(--fg-2);overflow-wrap:anywhere}
 .sec{padding-top:18px;margin-top:18px;border-top:1px solid var(--line)}
 .sec h3{font:600 12px/1 var(--font);letter-spacing:.09em;text-transform:uppercase;color:var(--fg-3);margin-bottom:12px}
 .hours{display:grid;gap:8px}
@@ -196,6 +219,8 @@ button.pill .ic{width:15px;height:15px;color:var(--accent)}
 .web .ic{width:18px;height:18px}
 .sv{display:flex;flex-wrap:wrap;gap:8px}
 .sv-chip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:17px;background:var(--surface-2);font:500 14.5px/1 var(--font)}
+.sv-chip.drv{background:transparent;border:1.5px dashed var(--fg-3);padding:0 11.5px}
+.sv.sm .sv-chip.drv{padding:0 8.5px}
 .sv-chip.tgl{border:1.5px solid transparent;color:var(--fg-2);padding:0 13px 0 10px}
 .sv-chip.tgl .ic{width:15px;height:15px;opacity:0}
 .sv-chip.tgl[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
@@ -210,6 +235,7 @@ a.link{display:inline-block}
 .rate-b{width:46px;height:46px;display:grid;place-items:center;color:var(--line)}
 .rate-b.on{color:var(--star)}
 .navs{display:flex;flex-wrap:wrap;gap:8px}
+.navs.soc{margin-top:14px}
 .s-note{color:var(--fg-3);font-size:13px;line-height:1.45;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 .s-note a{color:var(--accent);font-weight:600}
 

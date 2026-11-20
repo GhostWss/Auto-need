@@ -45,13 +45,53 @@
     return '[out:json][timeout:40];(' + body + ');out center tags qt;';
   }
 
-  /* etichetele serviciilor, pe categorii */
+  /* etichetele serviciilor, pe categorii (codurile nu se schimbă: serviciile completate de oameni pe telefon le folosesc) */
   var SVC = {
-    benz: { b95: 'Benzină 95', bp: 'Benzină premium', mot: 'Motorină', motp: 'Motorină premium', gpl: 'GPL', gnc: 'GNC (CNG)', e85: 'E85', adblue: 'AdBlue', ev: 'Încărcare electrică', mag: 'Magazin', cafea: 'Cafea', aer: 'Aer pentru roți', wc: 'Toaletă', spalare: 'Spălătorie', nonstop: 'Non-stop' },
-    service: { ulei: 'Schimb ulei', geo: 'Geometrie roți', diag: 'Diagnoză computerizată', frane: 'Frâne', distr: 'Distribuție', clima: 'Climatizare', elec: 'Electrică și baterii', evac: 'Evacuare', tinich: 'Tinichigerie și vopsitorie', parbriz: 'Parbrize', anv: 'Anvelope', general: 'Reparații generale', itp: 'ITP', nonstop: 'Non-stop' },
+    benz: { b95: 'Benzină 95', bp: 'Benzină premium', ben: 'Benzină', mot: 'Motorină', motp: 'Motorină premium', gpl: 'GPL', gnc: 'GNC (CNG)', e85: 'E85', adblue: 'AdBlue', ev: 'Încărcare electrică', mag: 'Magazin', cafea: 'Cafea', aer: 'Aer pentru roți', wc: 'Toaletă', spalare: 'Spălătorie', nonstop: 'Non-stop' },
+    service: { ulei: 'Schimb ulei', geo: 'Geometrie roți', diag: 'Diagnoză computerizată', frane: 'Frâne', distr: 'Distribuție', clima: 'Climatizare', elec: 'Electrică și baterii', evac: 'Evacuare', tinich: 'Tinichigerie și vopsitorie', parbriz: 'Parbrize', anv: 'Anvelope', general: 'Reparații generale', itp: 'ITP', cutie: 'Cutie de viteze', susp: 'Suspensie', motor: 'Motor', rev: 'Revizii', tract: 'Tractări', autor: 'Service autorizat', piese: 'Vânzare piese', camioane: 'Camioane', detail: 'Detailing', nonstop: 'Non-stop' },
     vulc: { montaj: 'Montat și demontat roți', echil: 'Echilibrare', pana: 'Reparat pană', schimb: 'Schimb anvelope', hotel: 'Hotel de anvelope', jante: 'Îndreptat jante', geo: 'Geometrie roți', vanzare: 'Vânzare anvelope', nonstop: 'Non-stop' },
     spal: { ext: 'Spălare exterioară', int: 'Spălare interioară', detail: 'Detailing', self: 'Self-service', auto: 'Spălare automată', asp: 'Aspirare', polish: 'Ceară și polish', camioane: 'Camioane', nonstop: 'Non-stop' },
     piese: { noi: 'Piese noi', sh: 'Piese second-hand', ulei: 'Uleiuri și lichide', baterii: 'Baterii', anv: 'Anvelope', acc: 'Accesorii', livrare: 'Livrare' }
+  };
+  /* la toate categoriile: cum se plătește și Wi-Fi */
+  var EXTRA = { card: 'Plată cu cardul', cash: 'Plată cash', wifi: 'Wi-Fi' };
+  Object.keys(SVC).forEach(function (t) { Object.keys(EXTRA).forEach(function (c) { SVC[t][c] = EXTRA[c]; }); });
+
+  /* Ce scrie în numele sau descrierea locului. Se caută pe text fără diacritice, cu cuvinte separate prin spațiu.
+     Ce iese de aici nu e o etichetă OpenStreetMap, ci o deducere din text: se păstrează separat (câmpul `sd`) și se arată altfel. */
+  var WORDS = {
+    service: [
+      ['tinich', /tinichigeri|vopsitori|caroseri|body ?shop/], ['parbriz', /parbriz|autoglass|geamuri auto|lunet/],
+      ['itp', /\bitp\b|\bi t p\b|inspectie tehnica/], ['clima', /climatiz|freon|aer conditionat/],
+      ['geo', /geometri|reglaj directi|alinier/], ['elec', /electric|electron|\becu\b/],
+      ['diag', /diagnoz|diagnostic|testar\w* computeriz|\bobd\b/], ['tract', /tractar|remorcar|asistenta rutiera/],
+      ['anv', /vulcaniz|anvelop|\btyres?\b|\btires?\b|service roti|reparatii roti/], ['autor', /autorizat|\bdealer/],
+      ['camioane', /camion|\btrucks?\b|\btir\b|autotractoare/], ['frane', /\bfrane\b|\bbrakes?\b/],
+      ['piese', /\bpiese\b|\bparts\b/], ['cutie', /cutii? de viteze|cutia de viteze|transmisi/],
+      ['susp', /suspensi|amortizoare/], ['evac', /esapament|\btobe\b|catalizator/],
+      ['rev', /revizi|intretinere periodica|mentenanta/], ['detail', /detailing/],
+      ['general', /mecanic|reparatii|atelier|\brepair/]
+    ],
+    vulc: [
+      ['echil', /echilibr|balansar/], ['geo', /geometri/], ['hotel', /hotel de anvelope|hotel anvelope|depozitare anvelope/],
+      ['jante', /\bjante\b|\bjanta\b/], ['vanzare', /vanzar|vindem|anvelope noi|second hand/],
+      ['pana', /reparat\w* pana|reparati\w* pana|petic|\bpene\b/], ['montaj', /montaj|demontaj|schimb\w* (de )?(roti|anvelop)|service roti/]
+    ],
+    spal: [
+      ['self', /self ?service|self wash|autoservire/], ['auto', /automat|tunel|touchless|fara contact/],
+      ['asp', /aspirat|aspirator|vacuum/], ['detail', /detailing/], ['ext', /exterior/], ['int', /interior/],
+      ['polish', /polish|ceara|ceramic|cerar/], ['camioane', /camion|\btir\b|\btruck/]
+    ],
+    piese: [
+      ['sh', /second hand|dezmembr|uzate/], ['ulei', /\bulei|lichide/], ['baterii', /baterii|acumulator/],
+      ['anv', /anvelop|\btyre|\btire/], ['acc', /accesorii/], ['livrare', /livrare|curier/], ['noi', /piese noi|originale/]
+    ],
+    benz: []
+  };
+  /* ce spune în `service=` / `services=` (liste cu „;” sau „,”) */
+  var SERVICE_TAG = {
+    service: { repair: 'general', repairs: 'general', parts: 'piese', tyres: 'anv', tyre: 'anv', glass: 'parbriz', dealer: 'autor', electrical: 'elec', body: 'tinich', bodywork: 'tinich', painting: 'tinich', inspection: 'itp', towing: 'tract' },
+    vulc: { tyres: 'schimb', tyre: 'schimb' }
   };
 
   function clean(s) { return typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : ''; }
@@ -73,54 +113,131 @@
     return null;
   }
 
+  /* servicii scrise în etichete (cele sigure). Etichetele `service:vehicle:*` sunt scrise în practică în mai multe feluri
+     (alignment / wheel_alignment, batteries / battery, repairs / car_repair...), așa că le luăm pe toate. */
   function servicesFor(type, tags, nonstop) {
     var sv = [];
-    function add(c) { if (sv.indexOf(c) < 0) sv.push(c); }
-    var V = function (k) { return yes(tags['service:vehicle:' + k]); };
+    function add(c) { if (sv.indexOf(c) < 0 && SVC[type][c]) sv.push(c); }
+    var V = function () {
+      for (var i = 0; i < arguments.length; i++) if (yes(tags['service:vehicle:' + arguments[i]])) return true;
+      return false;
+    };
     if (type === 'benz') {
       if (yes(tags['fuel:octane_95'])) add('b95');
       if (yes(tags['fuel:octane_98']) || yes(tags['fuel:octane_100']) || yes(tags['fuel:octane_102'])) add('bp');
+      if (!sv.length && (yes(tags['fuel:gasoline']) || yes(tags['fuel:octane']) || yes(tags['fuel:e10']))) add('ben');
       if (yes(tags['fuel:diesel'])) add('mot');
       if (yes(tags['fuel:GTL_diesel']) || yes(tags['fuel:diesel:class2'])) add('motp');
       if (yes(tags['fuel:lpg'])) add('gpl');
       if (yes(tags['fuel:cng'])) add('gnc');
       if (yes(tags['fuel:e85'])) add('e85');
       if (yes(tags['fuel:adblue'])) add('adblue');
+      if (yes(tags['fuel:electricity'])) add('ev');
       if (yes(tags.compressed_air)) add('aer');
       if (yes(tags.toilets)) add('wc');
       if (yes(tags.car_wash)) add('spalare');
     } else if (type === 'service') {
-      if (V('oil_change')) add('ulei');
-      if (V('wheel_alignment')) add('geo');
+      if (V('oil_change', 'oil_filter_change')) add('ulei');
+      if (V('wheel_alignment', 'alignment')) add('geo');
       if (V('diagnostics')) add('diag');
       if (V('brakes')) add('frane');
       if (V('air_conditioning')) add('clima');
-      if (V('electrical') || V('battery')) add('elec');
+      if (V('electrical', 'battery', 'batteries')) add('elec');
       if (V('exhaust')) add('evac');
-      if (V('body_repair') || V('painting')) add('tinich');
+      if (V('body_repair', 'painting')) add('tinich');
       if (V('glass')) add('parbriz');
-      if (V('tyres') || V('tyre_repair') || V('wheels')) add('anv');
-      if (V('car_repair')) add('general');
-      if (V('inspection')) add('itp');
+      if (V('tyres', 'tyre_repair', 'wheels', 'wheel_balancing')) add('anv');
+      if (V('car_repair', 'repairs', 'repair')) add('general');
+      if (V('inspection', 'statie_itp')) add('itp');
+      if (V('transmission', 'transmission_repair')) add('cutie');
+      if (V('suspension')) add('susp');
+      if (V('motor', 'engine')) add('motor');
+      if (V('maintenance')) add('rev');
+      if (V('truck_repair')) add('camioane');
+      if (V('car_parts')) add('piese');
+      if (V('detailing', 'car_care')) add('detail');
     } else if (type === 'vulc') {
       if (V('tyres')) add('schimb');
-      if (V('tyre_repair') || V('tyre_puncture')) add('pana');
-      if (V('wheel_balancing') || V('balancing')) add('echil');
-      if (V('wheel_alignment')) add('geo');
+      if (V('tyre_repair', 'tyre_puncture')) add('pana');
+      if (V('wheel_balancing', 'balancing')) add('echil');
+      if (V('wheel_alignment', 'alignment')) add('geo');
       if (V('wheels')) add('montaj');
-      if (V('tyres_sale') || V('new_tyres')) add('vanzare');
+      if (V('tyres_sale', 'new_tyres')) add('vanzare');
     } else if (type === 'spal') {
-      if (yes(tags.self_service)) add('self');
+      if (yes(tags.self_service) || tags.self_service === 'only') add('self');
       if (yes(tags.automated)) add('auto');
       if (yes(tags.vacuum_cleaner) || yes(tags.vacuum)) add('asp');
-      if (yes(tags.hgv)) add('camioane');
+      if (yes(tags.hgv) || tags.hgv === 'only') add('camioane');
     } else if (type === 'piese') {
       if (tags.second_hand === 'yes' || tags.second_hand === 'only') add('sh');
       if (yes(tags.delivery)) add('livrare');
+      if (V('tyres')) add('anv');
     }
+    /* service= / services= : „repair;parts;tyres” */
+    var map = SERVICE_TAG[type];
+    if (map) {
+      [tags.service, tags.services].forEach(function (v) {
+        if (typeof v !== 'string') return;
+        v.split(/[;,]/).forEach(function (x) { var c = map[x.trim().toLowerCase()]; if (c) add(c); });
+      });
+    }
+    /* cum se plătește, Wi-Fi */
+    var cards = ['credit_cards', 'debit_cards', 'cards', 'visa', 'mastercard', 'maestro', 'account_cards', 'visa_debit', 'visa_electron', 'contactless', 'nfc', 'apple_pay', 'google_pay', 'mastercard_contactless'];
+    if (cards.some(function (k) { return yes(tags['payment:' + k]); })) add('card');
+    if (yes(tags['payment:cash'])) add('cash');
+    if (tags.internet_access === 'wlan' || tags.internet_access === 'wifi') add('wifi');
     if (nonstop && SVC[type].nonstop) add('nonstop');
     return sv;
   }
+
+  /* text -> cuvinte mici, fără diacritice, separate prin spațiu */
+  function words(s) {
+    return ' ' + String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  }
+  /* Ce se poate deduce din descriere și din nume, fără ce știm deja din etichete. */
+  function derivedFor(type, name, desc, have) {
+    var rules = WORDS[type] || [], out = [];
+    if (!rules.length) return out;
+    var text = words(desc) + ' ' + words(name);
+    rules.forEach(function (r) {
+      if (have.indexOf(r[0]) < 0 && out.indexOf(r[0]) < 0 && r[1].test(text) && SVC[type][r[0]]) out.push(r[0]);
+    });
+    return out;
+  }
+
+  /* descrierea scrisă de cine a cartografiat locul: curățată, fără MAJUSCULE întregi, nu prea lungă */
+  function descOf(tags, name) {
+    var d = clean(tags['description:ro']) || clean(tags.description);
+    if (d.length < 8 || /^hotspot\b/i.test(d)) return '';
+    if (d === d.toUpperCase() && d !== d.toLowerCase()) {
+      d = d.toLowerCase().replace(/(^|[.!?]\s+)(\S)/g, function (m, a, b) { return a + b.toUpperCase(); });
+      d = d.charAt(0).toUpperCase() + d.slice(1);
+    }
+    d = d.replace(/^[-–•*\s]+/, '');
+    if (d.length > 500) d = d.slice(0, 500).replace(/\s+\S*$/, '') + '…';
+    return d === name ? '' : d;
+  }
+
+  function emailOf(tags) {
+    var e = clean(tags['contact:email']) || clean(tags.email);
+    e = e.split(/[;,\s]/)[0];
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(e) && e.length <= 80 ? e : '';
+  }
+  /* pagină de Facebook / Instagram: adresă întreagă sau doar numele paginii; întoarce mereu o adresă https de pe site-ul respectiv */
+  function socialOf(raw, hosts, base) {
+    var v = clean(raw).split(/[;,]/)[0].trim();
+    if (!v || /\s/.test(v)) return '';   /* un nume de pagină nu are spații */
+    var m = /^(?:https?:\/\/)?(?:(?:www|m|mobile|web)\.)?([a-z0-9-]+\.[a-z]{2,3})(\/[^\s"'<>]*)?$/i.exec(v);
+    if (m && hosts.indexOf(m[1].toLowerCase()) >= 0) {
+      var path = m[2] || '';
+      return path.length > 1 ? (base + path.slice(1)).slice(0, 200) : '';
+    }
+    if (/^https?:\/\//i.test(v)) return '';   /* altă adresă: nu e o pagină de rețea socială */
+    v = v.replace(/^@/, '');
+    return /^[A-Za-z0-9._-]{2,60}$/.test(v) ? base + v : '';
+  }
+  function facebookOf(tags) { return socialOf(tags['contact:facebook'] || tags.facebook || tags['brand:facebook'], ['facebook.com', 'fb.com'], 'https://www.facebook.com/'); }
+  function instagramOf(tags) { return socialOf(tags['contact:instagram'] || tags.instagram || tags['brand:instagram'], ['instagram.com'], 'https://www.instagram.com/'); }
 
   /* telefon: 0721 234 567 / 021 234 5678 + varianta pentru tel: */
   function fmtPhone(raw) {
@@ -140,7 +257,8 @@
   }
 
   function phonesOf(tags) {
-    var raw = [tags.phone, tags['contact:phone'], tags.mobile, tags['contact:mobile']];
+    var raw = [tags.phone, tags['contact:phone'], tags.mobile, tags['contact:mobile'], tags['phone:mobile']];
+    if (typeof tags.contact === 'string' && /^\+?[\d][\d\s().\-;,]{6,}$/.test(tags.contact.trim())) raw.push(tags.contact);   /* uneori telefonul e scris în `contact` */
     var out = [], seen = {};
     raw.forEach(function (v) {
       if (!v) return;
@@ -219,6 +337,8 @@
       var brand = clean(tags.brand);
       var name = clean(tags.name) || clean(tags['name:ro']) || brand || clean(tags.operator);
       var h = clean(tags.opening_hours);
+      var desc = descOf(tags, name);
+      var sv = servicesFor(t, tags, /^24\s*\/\s*7$/.test(h));
       list.push({
         id: String(el.type || 'node').charAt(0) + el.id,
         t: t,
@@ -230,8 +350,13 @@
         h: h,
         tel: phonesOf(tags),
         w: websiteOf(tags),
-        sv: servicesFor(t, tags, /^24\s*\/\s*7$/.test(h)),
+        sv: sv,
         b: brand,
+        d: desc,
+        e: emailOf(tags),
+        fb: facebookOf(tags),
+        ig: instagramOf(tags),
+        sd: derivedFor(t, name === brand ? '' : name, desc, sv),
         s: Object.keys(tags).length + (name ? 3 : 0)
       });
     }
