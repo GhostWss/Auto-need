@@ -114,6 +114,7 @@ const REDUCED = matchMedia('(prefers-reduced-motion:reduce)').matches;
 
 let W = 0, H = 0, DPR = 1, peekH = 0, anim = 0, raf = 0, editing = false, listLimit = 120;
 let zChangedAt = 0, settleTimer = 0;
+let atHome = true;   /* harta e încă în vederea de pornire: omul n-a mutat-o, deci o putem potrivi din nou cu ecranul */
 const view = { cx: .5, cy: .5, z: 10 };
 const state = { types: new Set(), open: false, q: '', sel: null, view: 'map' };
 let PLACES = [], byId = {}, me = null;
@@ -205,8 +206,9 @@ function viewFit(b, pad, maxZ) {
   return viewAt((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, z);
 }
 const clampView = v => ({ z: clamp(v.z, MIN_Z, MAX_Z), cx: clamp(v.cx, BMX[0], BMX[1]), cy: clamp(v.cy, BMY[0], BMY[1]) });
-function setView(v, noClamp) {
+function setView(v, noClamp, home) {
   const c = noClamp ? v : clampView(v);
+  if (!home) atHome = false;
   if (Math.abs(c.z - view.z) > 1e-4) zChangedAt = performance.now();
   view.cx = c.cx; view.cy = c.cy; view.z = c.z;
   scheduleRender();
@@ -245,6 +247,11 @@ const mercBounds = arr => {
 function homeView() {
   return viewFit({ x0: mxOf(HOME.lon0), x1: mxOf(HOME.lon1), y0: myOf(HOME.lat1), y1: myOf(HOME.lat0) }, 20, 12);
 }
+/* Vederea de pornire: tot Bucureștiul pe ecran. Primul ecran măsurat nu e mereu cel final (pagină deschisă în fundal sau într-o
+   fereastră încă închisă, bara de sus care își ia forma după fonturi, telefon rotit), așa că până ce omul mută harta
+   o potrivim din nou cu ecranul de fiecare dată când acesta își schimbă mărimea. După prima mișcare nu o mai atingem. */
+function fitHome() { setView(homeView(), true, true); }
+function onResize() { measure(); if (atHome) fitHome(); scheduleRender(); }
 const toScreen = (mx, my) => { const S = Sz(view.z); return [(mx - view.cx) * S + W / 2, (my - view.cy) * S + H / 2]; };
 
 /* ---------- plăcile hărții (canvas) ---------- */
@@ -1060,7 +1067,7 @@ aboutEl.addEventListener('click', async e => {
 /* ---------- pornire ---------- */
 function start() {
   measure();
-  setView(homeView(), true);
+  fitHome();
   try {   /* scurtături: ?t=benz  sau  ?t=vulc,service&open=1 */
     const q = new URLSearchParams(location.search);
     (q.get('t') || '').split(',').forEach(t => { if (TYPES[t]) state.types.add(t); });
@@ -1070,11 +1077,11 @@ function start() {
   if (location.protocol === 'file:') toast('Ai deschis fișierul direct: așa nu se vede harta OpenStreetMap. Pune aplicația pe un site (vezi README).', 9000);
   updateChips();
   if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(() => { measure(); scheduleRender(); }).observe(mapEl);
-    new ResizeObserver(measure).observe(topEl);
-    new ResizeObserver(measure).observe(sheetEl);
-  } else window.addEventListener('resize', () => { measure(); scheduleRender(); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+    new ResizeObserver(onResize).observe(mapEl);
+    new ResizeObserver(onResize).observe(topEl);
+    new ResizeObserver(measure).observe(sheetEl);   /* foaia de jos nu schimbă vederea de pornire */
+  } else window.addEventListener('resize', onResize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(onResize);
   window.addEventListener('online', () => { netErr = 0; tiles.forEach(t => { if (t.st === 2) t.at = 0; }); showNet(false); scheduleRender(); if (!PLACES.length || loadState === 'error') loadData(false); });
   window.addEventListener('offline', () => showNet(true));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { NOW = bucharestNow(); scheduleRender(); } });

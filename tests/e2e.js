@@ -73,6 +73,24 @@ const mercY = lat => { const s = Math.sin(lat * Math.PI / 180); return 0.5 - Mat
 const countText = (page, t) => page.locator('.chip[data-type="' + t + '"] b').textContent();
 const chipCounts = async page => { const o = {}; for (const t of ['service', 'benz', 'vulc', 'spal', 'piese']) o[t] = +(await countText(page, t)); return o; };
 const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+/* Prima vedere = tot Bucureștiul (zona HOME din aplicație) pe ecran, sub bara de sus, și umple ecranul (nu e prea departe).
+   `p` e o pagină sau un cadru din pagină. */
+const HOME = new Function('return ' + /const HOME = (\{[^}]*\})/.exec(fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8'))[1])();
+const homeFit = p => p.evaluate(HOME => {
+  const m = document.getElementById('map').getBoundingClientRect(), top = document.getElementById('top').offsetHeight;
+  const xs = [], ys = [];
+  [HOME.lon0, HOME.lon1].forEach(lon => [HOME.lat0, HOME.lat1].forEach(lat => { const q = HA.toScreen(HA.mxOf(lon), HA.myOf(lat)); xs.push(q[0]); ys.push(q[1]); }));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  return {
+    W: m.width, H: m.height, top, z: HA.view.z, box: [x0, y0, x1, y1].map(Math.round),
+    inside: x0 >= 0 && x1 <= m.width && y0 >= top && y1 <= m.height,
+    fill: Math.max((x1 - x0) / (m.width - 40), (y1 - y0) / (m.height - top - 40))
+  };
+}, HOME);
+const okHome = (r, what) => {
+  ok(r.W > 0 && r.inside, what + ': tot Bucureștiul e pe ecran, sub bara de sus (' + r.W + '×' + r.H + ', bara ' + r.top + ', z ' + r.z.toFixed(2) + ', ' + r.box + ')');
+  ok(Math.abs(r.fill - 1) < 0.03, what + ': și umple ecranul, nu e prea departe (umplere ' + r.fill.toFixed(2) + ')');
+};
 
 (async () => {
   const { srv, base: b } = await L.serve(ROOT);
@@ -102,6 +120,79 @@ const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
     eq(S.unexpected, [], 'nicio cerere în afara OpenStreetMap');
     eq(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'fără derulare orizontală');
     eq(errors, [], 'fără erori în consolă');
+    await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Prima vedere: tot Bucureștiul pe ecran, la mai multe mărimi de telefon', async () => {
+    for (const [w, h] of [[390, 844], [375, 812], [360, 640], [412, 915], [844, 390]]) {
+      const { ctx, page, errors } = await session(state0(), { device: Object.assign({}, PHONE, { viewport: { width: w, height: h } }), wait: false });
+      await page.waitForFunction(() => window.HA);
+      okHome(await homeFit(page), w + '×' + h);
+      eq(errors, [], w + '×' + h + ': fără erori în consolă');
+      await ctx.close();
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Prima vedere: pagina pornește într-o fereastră încă ascunsă, apoi apare', async () => {
+    /* primul ecran măsurat poate fi unul fără mărime (pagină deschisă în fundal, vizualizare care se deschide după): harta nu rămâne la zoom minim */
+    const S = state0();
+    const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, PHONE));
+    await L.installMocks(ctx, S);
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+    await page.route(base + 'gazda.html', route => route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><meta charset="utf-8"><body style="margin:0"><iframe id="f" src="index.html?debug" style="display:none;border:0;width:390px;height:844px"></iframe>' }));
+    await page.goto(base + 'gazda.html');
+    const fr = page.frames().find(f => f !== page.mainFrame());
+    await fr.waitForFunction(() => window.HA && window.HA.places.length > 0, null, { timeout: 15000 });
+    eq(await fr.evaluate(() => document.getElementById('map').getBoundingClientRect().width), 0, 'cât fereastra e ascunsă, harta nu are mărime');
+    await page.evaluate(() => { document.getElementById('f').style.display = 'block'; });
+    await fr.waitForFunction(() => document.getElementById('map').getBoundingClientRect().width === 390, null, { timeout: 4000 });
+    await fr.waitForFunction(() => HA.view.z > 10, null, { timeout: 4000 });
+    okHome(await homeFit(fr), 'după ce fereastra apare');
+    eq(errors, [], 'fără erori în consolă');
+    await ctx.close();
+  });
+
+  /* ---------------------------------------------------------------- */
+  await T('Prima vedere urmărește ecranul până muți harta; după aceea harta rămâne unde ai pus-o', async () => {
+    const { ctx, page, errors } = await session(state0());
+    const snap = () => page.evaluate(() => ({ cx: HA.view.cx, cy: HA.view.cy, z: HA.view.z }));
+    const resize = async (w, h) => {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForFunction(w => document.getElementById('map').getBoundingClientRect().width === w, w, { timeout: 4000 });
+      await raf2(page);
+    };
+    okHome(await homeFit(page), 'la pornire');
+    await resize(844, 390);
+    okHome(await homeFit(page), 'telefon rotit pe orizontală, harta neatinsă');
+    await resize(390, 844);
+    okHome(await homeFit(page), 'și înapoi pe verticală');
+    /* acum mut harta cu degetul */
+    await page.mouse.move(200, 500); await page.mouse.down(); await page.mouse.move(120, 430, { steps: 6 }); await page.mouse.up();
+    let b = await snap();
+    for (let i = 0; i < 20; i++) { await page.waitForTimeout(100); const n = await snap(); if (n.cx === b.cx && n.cy === b.cy && n.z === b.z) break; b = n; }
+    const moved = await snap();
+    await resize(844, 390);
+    const after = await snap();
+    eq(after, moved, 'după ce ai mutat harta, rotirea nu o mai potrivește singură (rămâne unde ai pus-o)');
+    const fit = await homeFit(page);
+    ok(!(Math.abs(fit.fill - 1) < 0.03 && fit.inside), 'iar vederea nu e cea de pornire (ai mutat-o tu)');
+    /* același lucru dacă ai doar apropiat cu butonul + */
+    const s2 = await session(state0());
+    await s2.page.click('#zin');
+    await s2.page.waitForTimeout(500);
+    const z2 = await s2.page.evaluate(() => HA.view.z);
+    await s2.page.setViewportSize({ width: 844, height: 390 });
+    await s2.page.waitForFunction(() => document.getElementById('map').getBoundingClientRect().width === 844, null, { timeout: 4000 });
+    await raf2(s2.page);
+    near(await s2.page.evaluate(() => HA.view.z), z2, 1e-9, 'după butonul + , rotirea nu schimbă zoomul');
+    eq(errors.concat(s2.errors), [], 'fără erori în consolă');
+    await s2.ctx.close();
     await ctx.close();
   });
 
