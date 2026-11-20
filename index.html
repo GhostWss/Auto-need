@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Harta Auto București–Ilfov</title>
+<meta name="description" content="Service-uri, benzinării, vulcanizări, spălătorii și magazine de piese din București și Ilfov, pe harta OpenStreetMap.">
+<meta name="theme-color" content="#0b57c9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d141b" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Harta Auto">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
+  <symbol id="i-service" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-dasharray="3 3.05"/><path fill="currentColor" fill-rule="evenodd" d="M12 5.6a6.4 6.4 0 1 0 0 12.8 6.4 6.4 0 0 0 0-12.8zM12 9.6a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8z"/></symbol>
+  <symbol id="i-vulc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3" fill="none" stroke="currentColor" stroke-width="3.4"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M12 9.4V6.8M14.3 13.3l2.3 1.3M9.7 13.3l-2.3 1.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-spal" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3.2c-.4.5-6.2 7.2-6.2 11.3a6.2 6.2 0 0 0 12.4 0C18.2 10.4 12.4 3.7 12 3.2z"/></symbol>
+  <symbol id="i-piese" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 3.4l7.4 4.3v8.6L12 20.6l-7.4-4.3V7.7zM12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z"/></symbol>
+  <symbol id="i-benz" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M4.6 5.3A1.8 1.8 0 0 1 6.4 3.5h6.2a1.8 1.8 0 0 1 1.8 1.8V20.5H4.6zM7 6.2v3.6h5V6.2z"/><path d="M14.4 8.6H16a1.7 1.7 0 0 1 1.7 1.7v6.3a1.4 1.4 0 0 0 2.8 0V9.1l-2.3-2.3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 20.5h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.2 15.2L20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="4.2" cy="6.5" r="1.3" fill="currentColor"/><circle cx="4.2" cy="12" r="1.3" fill="currentColor"/><circle cx="4.2" cy="17.5" r="1.3" fill="currentColor"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 3.5L3.8 10.6l6.4 2.3 2.3 6.5z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M5 15.5v-9a2 2 0 0 1 2-2h8.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.4 4.4L19 7.4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 14.5l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path fill="currentColor" d="M6.6 3.5h2.9l1.5 3.9-1.9 1.4a11.2 11.2 0 0 0 5.1 5.1l1.4-1.9 3.9 1.5v2.9a2 2 0 0 1-2.1 2A15.5 15.5 0 0 1 4.6 5.6a2 2 0 0 1 2-2.1z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.8 12h16.4M12 3.8c2.4 2.3 3.4 5.1 3.4 8.2s-1 5.9-3.4 8.2c-2.4-2.3-3.4-5.1-3.4-8.2s1-5.9 3.4-8.2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 11v5.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.9" r="1.3" fill="currentColor"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4M19.5 4.5v4.2h-4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5L11 13M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-install" viewBox="0 0 24 24"><path d="M12 4v10M7.5 10.5L12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div id="app" data-view="map" data-sheet="">
+  <div id="map" tabindex="0" role="application" aria-label="Hartă București și Ilfov. Trage ca să muți harta, ciupește ca să mărești.">
+    <canvas id="tiles"></canvas>
+    <svg id="ov" xmlns="http://www.w3.org/2000/svg" role="presentation">
+      <g id="g-cl"></g><g id="g-pin"></g><g id="g-me"></g>
+    </svg>
+  </div>
+
+  <header class="top" id="top">
+    <div class="search" role="search">
+      <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="q" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Caută un loc sau un serviciu" aria-label="Caută un loc">
+      <button class="icon-btn" id="qx" aria-label="Șterge căutarea" hidden><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+      <button class="icon-btn" id="mode" aria-label="Arată lista"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg></button>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Categorii">
+      <button class="chip" data-type="service" aria-pressed="false" style="--c:var(--c-service)"><svg class="ic" aria-hidden="true"><use href="#i-service"/></svg>Service <b></b></button>
+      <button class="chip" data-type="benz" aria-pressed="false" style="--c:var(--c-benz);--ci:var(--i-benz)"><svg class="ic" aria-hidden="true"><use href="#i-benz"/></svg>Benzinărie <b></b></button>
+      <button class="chip" data-type="vulc" aria-pressed="false" style="--c:var(--c-vulc)"><svg class="ic" aria-hidden="true"><use href="#i-vulc"/></svg>Vulcanizare <b></b></button>
+      <button class="chip" data-type="spal" aria-pressed="false" style="--c:var(--c-spal)"><svg class="ic" aria-hidden="true"><use href="#i-spal"/></svg>Spălătorie <b></b></button>
+      <button class="chip" data-type="piese" aria-pressed="false" style="--c:var(--c-piese)"><svg class="ic" aria-hidden="true"><use href="#i-piese"/></svg>Piese <b></b></button>
+      <button class="chip" data-open aria-pressed="false"><i class="dot-ok"></i>Deschise acum</button>
+    </div>
+  </header>
+
+  <section class="list" id="list" hidden aria-label="Lista locurilor">
+    <div class="l-head" id="listHead"></div>
+    <div id="listBody"></div>
+  </section>
+
+  <div class="controls">
+    <button id="zin" aria-label="Mărește harta"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
+    <button id="zout" aria-label="Micșorează harta"><svg class="ic" aria-hidden="true"><use href="#i-minus"/></svg></button>
+    <button id="loc" aria-label="Arată unde sunt"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg></button>
+  </div>
+  <div class="foot">
+    <button class="pill" id="aboutBtn"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span id="aboutTxt">Despre și date</span></button>
+    <span class="pill warn" id="net" hidden>Fără conexiune · harta poate fi incompletă</span>
+    <div class="scale"><span id="scaleBar"></span><em id="scaleTxt"></em><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a></div>
+  </div>
+
+  <aside class="sheet" id="sheet" hidden aria-label="Detalii loc"></aside>
+
+  <div class="empty" id="msg" hidden role="status"></div>
+  <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+
+  <div class="modal" id="about" hidden role="dialog" aria-modal="true" aria-labelledby="aboutT">
+    <div class="modal-card" id="aboutCard"></div>
+  </div>
+</div>
+
+<noscript><p style="position:fixed;inset:0;display:grid;place-items:center;margin:0;padding:24px;text-align:center;background:#f1f4f6;color:#12202c;font:18px system-ui,sans-serif">Harta Auto are nevoie de JavaScript ca să funcționeze.</p></noscript>
+
+<script src="js/hours.js"></script>
+<script src="js/osm.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
