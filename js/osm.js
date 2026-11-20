@@ -21,8 +21,9 @@
     'https://overpass.kumi.systems/api/interpreter'
   ];
   /* hedge: după câte ms pornește și al doilea server dacă primul nu a răspuns; timeout: cât așteptăm un răspuns;
-     cool: cât timp un server care a picat rămâne la coadă */
-  var CONFIG = { hedge: 6000, timeout: 40000, cool: 10 * 60 * 1000 };
+     cool: cât timp un server care a picat rămâne la coadă. headers și log sunt pentru scriptul de noapte (Node):
+     antete în plus (User-Agent) și o funcție care află ce a răspuns fiecare server. */
+  var CONFIG = { hedge: 6000, timeout: 40000, cool: 10 * 60 * 1000, headers: null, log: null };
   var cool = {}, good = null;
 
   var FILTERS = [
@@ -253,7 +254,7 @@
     return fetch(endpoint, {
       method: 'POST',
       body: 'data=' + encodeURIComponent(q),
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, CONFIG.headers || {}),
       signal: ctrl ? ctrl.signal : undefined
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -295,11 +296,13 @@
           return j;
         }).then(function (j) {
           active--;
+          if (CONFIG.log) CONFIG.log(ep, 'ok, ' + j.elements.length + ' elemente');
           good = ep; delete cool[ep];
           end(resolve, { j: j, ep: ep });
         }, function (err) {
           active--;
           if (finished) return;
+          if (CONFIG.log) CONFIG.log(ep, (err && err.empty) ? 'fără rezultate' : 'eroare: ' + (err && (err.name === 'AbortError' ? 'nu a răspuns la timp' : err.message)));
           lastErr = err;
           if (err && err.empty) { end(reject, err); return; }
           cool[ep] = Date.now();

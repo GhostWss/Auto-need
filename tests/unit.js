@@ -257,6 +257,20 @@ atest('toate serverele tac: se oprește la limita de timp, nu așteaptă la nesf
     assert.strictEqual(log.length, 4);
   });
 });
+atest('antete în plus (User-Agent) și jurnal pentru scriptul de noapte', async () => {
+  await withNet(async () => {
+    O.CONFIG.hedge = 5000; O.CONFIG.headers = { 'User-Agent': 'proba/1' };
+    const lines = []; O.CONFIG.log = (ep, what) => lines.push(new URL(ep).host + ': ' + what);
+    const seen = [];
+    const base = global.fetch;
+    fakeNet(h => h === HOSTS[1] ? { elements: EL } : { fail: 502 });
+    const inner = global.fetch;
+    global.fetch = (url, opts) => { seen.push(opts.headers); return inner(url, opts); };
+    try { await O.race('q'); } finally { O.CONFIG.headers = null; O.CONFIG.log = null; }
+    assert.ok(seen.every(h => h['User-Agent'] === 'proba/1' && /x-www-form-urlencoded/.test(h['Content-Type'])), 'antetele ajung la cerere');
+    same(lines, [HOSTS[0] + ': eroare: HTTP 502', HOSTS[1] + ': ok, 1 elemente']);
+  });
+});
 atest('load: zona nu e găsită după limite → interogare pe dreptunghi', async () => {
   await withNet(async () => {
     const log = fakeNet((h, rec) => rec.strict ? { elements: [] } : { elements: EL });

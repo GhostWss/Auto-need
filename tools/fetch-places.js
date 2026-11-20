@@ -10,8 +10,12 @@ const OSM = require('../js/osm.js');
 
 const OUT = path.join(__dirname, '..', 'data', 'places.json');
 const MIN = process.env.PLACES_MIN ? { b: +process.env.PLACES_MIN, i: +process.env.PLACES_MIN } : { b: 300, i: 100 };   // sub atâtea locuri, ceva nu e în regulă
-const ROUNDS = +process.env.PLACES_ROUNDS || 4, PAUSE = process.env.PLACES_PAUSE !== undefined ? +process.env.PLACES_PAUSE : 45000;
+const ROUNDS = +process.env.PLACES_ROUNDS || 5, PAUSE = process.env.PLACES_PAUSE !== undefined ? +process.env.PLACES_PAUSE : 60000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* serverele publice Overpass cer să te prezinți; și vrem să aflăm, din rezumatul rulării, ce a răspuns fiecare */
+OSM.CONFIG.headers = { 'User-Agent': 'harta-auto/1.0 (+https://github.com/GhostWss/Auto-need)' };
+const trace = [];
+OSM.CONFIG.log = (ep, what) => { const line = new URL(ep).host + ': ' + what; trace.push(line); console.log('  ' + line); };
 const strip = p => ({ id: p.id, t: p.t, n: p.n, z: p.z, a: p.a, lat: p.lat, lon: p.lon, h: p.h, tel: p.tel, w: p.w, sv: p.sv, b: p.b });
 const byId = (a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
@@ -28,6 +32,7 @@ async function loadZone(z) {
       last = new Error('Prea puține locuri în ' + OSM.ZONES[z].name + ': ' + places.length + ' (minim ' + MIN[z] + ')');
     } catch (e) { last = e; }
     console.log('Încercarea ' + round + ' din ' + ROUNDS + ' pentru ' + OSM.ZONES[z].name + ' n-a mers: ' + (last && last.message));
+    console.log('::warning title=Încercarea ' + round + ' pentru ' + OSM.ZONES[z].name + '::' + trace.slice(-4).join(' | '));
     if (round < ROUNDS) await sleep(PAUSE);
   }
   throw last;
@@ -48,4 +53,13 @@ async function loadZone(z) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(out) + '\n');
   console.log('Scris ' + path.relative(process.cwd(), OUT) + ': ' + zones.b.length + ' în București, ' + zones.i.length + ' în Ilfov (date OpenStreetMap din ' + out.osm + ').');
-})().catch(e => { console.error('Nu am putut actualiza locurile: ' + (e && e.message)); process.exit(1); });
+})().catch(e => {
+  const msg = 'Nu am putut actualiza locurile: ' + (e && e.message) + ' (' + trace.slice(-4).join(' | ') + ').';
+  /* Overpass e deseori aglomerat. Cât timp fișierul de acum e recent, aplicația merge bine cu el, deci nu dau eroare
+     (ca să nu primești în fiecare noapte un e-mail de la GitHub). Dacă fișierul s-a învechit, eroarea apare. */
+  let age = Infinity;
+  try { age = Date.now() - JSON.parse(fs.readFileSync(OUT, 'utf8')).ts; } catch (x) {}
+  if (age < 6 * 864e5) { console.log('::warning::' + msg + ' Las fișierul de acum (are ' + Math.round(age / 36e5) + ' ore).'); return; }
+  console.log('::error::' + msg);
+  process.exit(1);
+});
